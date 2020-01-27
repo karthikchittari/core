@@ -101,7 +101,7 @@ $CONFIG = [
  */
 
 'collabora_group' => '',
-  
+
 /**
  * OpenID Connect(OIDC) Configuration
  *
@@ -141,24 +141,24 @@ $CONFIG = [
  * introspection.
  */
 'openid-connect' => array(
-    'autoRedirectOnLoginPage' => false,
-    'client-id' => '',
-    'client-secret' => '',
-    'loginButtonName' => 'OpenId Connect',
-    'mode' => 'userid',
-    // Only required if the OpenID Connect Provider does not support service discovery
-    'provider-params' => array(
-        'authorization_endpoint' => '...',
-        'end_session_endpoint' => '...',
-        'jwks_uri' => '...',
-        'registration_endpoint' => '...',
-        'token_endpoint' => '...',
-        'token_endpoint_auth_methods_supported' => '...',
-        'userinfo_endpoint' => '...'
-    ),
-    'provider-url' => '',
-    'search-attribute' => 'sub',
-    'use-token-introspection-endpoint' => true,
+	'autoRedirectOnLoginPage' => false,
+	'client-id' => '',
+	'client-secret' => '',
+	'loginButtonName' => 'OpenId Connect',
+	'mode' => 'userid',
+	// Only required if the OpenID Connect Provider does not support service discovery
+	'provider-params' => array(
+		'authorization_endpoint' => '',
+		'end_session_endpoint' => '',
+		'jwks_uri' => '',
+		'registration_endpoint' => '',
+		'token_endpoint' => '',
+		'token_endpoint_auth_methods_supported' => '',
+		'userinfo_endpoint' => ''
+	),
+	'provider-url' => '',
+	'search-attribute' => 'sub',
+	'use-token-introspection-endpoint' => true,
 ),
 
 ];
