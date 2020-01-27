@@ -49,6 +49,8 @@ class PublicLinkFilesPage extends FilesPageBasic {
 	protected $passwordSubmitButtonId = 'password-submit';
 	protected $warningMessageCss = '.warning';
 	protected $deleteAllSelectedBtnXpath = "//a[@class='delete-selected']";
+	protected $uploadedElementsCss = '.public-upload-view--completed';
+	protected $uploadedElementsXpath = "//div[@class='public-upload-view--completed']//li";
 
 	/**
 	 *
@@ -87,10 +89,10 @@ class PublicLinkFilesPage extends FilesPageBasic {
 	/**
 	 * {@inheritDoc}
 	 *
+	 * @return void
+	 * @throws \Exception
 	 * @see \Page\FilesPageBasic::getFilePathInRowXpath()
 	 *
-	 * @throws \Exception
-	 * @return void
 	 */
 	protected function getFilePathInRowXpath() {
 		throw new \Exception("not implemented in PublicLinkFilesPage");
@@ -99,7 +101,7 @@ class PublicLinkFilesPage extends FilesPageBasic {
 	/**
 	 * @param Session $session
 	 * @param Factory $factory
-	 * @param array   $parameters
+	 * @param array $parameters
 	 */
 	public function __construct(
 		Session $session, Factory $factory, array $parameters = []
@@ -120,8 +122,8 @@ class PublicLinkFilesPage extends FilesPageBasic {
 	 *
 	 * @param string $server
 	 *
-	 * @throws ElementNotFoundException
 	 * @return void
+	 * @throws ElementNotFoundException
 	 */
 	public function addToServer($server) {
 		$addToYourOcBtn = $this->findById($this->addToYourOcBtnId);
@@ -155,8 +157,8 @@ class PublicLinkFilesPage extends FilesPageBasic {
 	 * @param string $name
 	 * @param int $timeoutMsec
 	 *
-	 * @throws ElementNotFoundException|\Exception
 	 * @return string name of the created file
+	 * @throws ElementNotFoundException|\Exception
 	 */
 	public function createFolder(
 		Session $session, $name = null,
@@ -272,6 +274,7 @@ class PublicLinkFilesPage extends FilesPageBasic {
 		$url3 = $directLink->getAttribute("value");
 		return [$url1, $url2, $url3];
 	}
+
 	/**
 	 * enter public link password
 	 *
@@ -480,10 +483,31 @@ class PublicLinkFilesPage extends FilesPageBasic {
 	/**
 	 * waits till the upload progressbar is not visible anymore
 	 *
-	 * @throws ElementNotFoundException
 	 * @return void
+	 * @throws ElementNotFoundException
 	 */
 	public function waitForUploadProgressbarToFinish() {
 		$this->filesPageCRUDFunctions->waitForUploadProgressbarToFinish();
+	}
+
+	/**
+	 * returns list of completely uploaded elements
+	 *
+	 * @return array
+	 */
+	public function getCompletelyUploadedElements() {
+		$uploadedElementsContainer = $this->find("css", $this->uploadedElementsCss);
+		$this->assertElementNotNull(
+			$uploadedElementsContainer,
+			__METHOD__ .
+			" CSS $this->uploadedElementsCss " .
+			"is found NULL"
+		);
+		$elements = $this->findAll("xpath", $this->uploadedElementsXpath);
+		$uploadedElements = [];
+		foreach ($elements as $element) {
+			\array_push($uploadedElements, $element->getText());
+		}
+		return $uploadedElements;
 	}
 }

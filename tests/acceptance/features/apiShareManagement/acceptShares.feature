@@ -18,9 +18,13 @@ Feature: accept/decline shares coming from internal users
     And user "user2" has been added to group "grp1"
 
   @smokeTest
-  Scenario: share a file & folder with another internal user when auto accept is enabled
+  Scenario Outline: share a file & folder with another internal user with different permissions when auto accept is enabled
     Given parameter "shareapi_auto_accept_share" of app "core" has been set to "yes"
-    When user "user0" shares folder "/PARENT" with user "user1" using the sharing API
+    When user "user0" creates a share using the sharing API with settings
+      | path        | PARENT        |
+      | shareType   | user          |
+      | shareWith   | user1         |
+      | permissions | <permissions> |
     And user "user0" shares file "/textfile0.txt" with user "user1" using the sharing API
     Then the OCS status code should be "100"
     And the HTTP status code should be "200"
@@ -35,6 +39,13 @@ Feature: accept/decline shares coming from internal users
       | path               |
       | /PARENT (2)/       |
       | /textfile0 (2).txt |
+    And  the downloaded content when downloading file "/PARENT (2)/CHILD/child.txt" for user "user1" with range "bytes=19-28" should be "file child"
+    And  the downloaded content when downloading file "/textfile0 (2).txt" for user "user1" with range "bytes=14-24" should be "text file 0"
+    Examples:
+      | permissions |
+      | read        |
+      | change      |
+      | all         |
 
   Scenario Outline: share a file & folder with another internal user when auto accept is enabled and there is a default folder for received shares
     Given parameter "shareapi_auto_accept_share" of app "core" has been set to "yes"
@@ -62,9 +73,13 @@ Feature: accept/decline shares coming from internal users
       | ReceivedShares      | /ReceivedShares     |        | PARENT               | textfile0.txt          |
       | /My/Received/Shares | /My/Received/Shares |        | PARENT               | textfile0.txt          |
 
-  Scenario: share a file & folder with internal group when auto accept is enabled
+  Scenario Outline: share a file & folder with internal group with different permissions when auto accept is enabled
     Given parameter "shareapi_auto_accept_share" of app "core" has been set to "yes"
-    When user "user0" shares folder "/PARENT" with group "grp1" using the sharing API
+    When user "user0" creates a share using the sharing API with settings
+      | path        | PARENT        |
+      | shareType   | group         |
+      | shareWith   | grp1          |
+      | permissions | <permissions> |
     And user "user0" shares file "/textfile0.txt" with group "grp1" using the sharing API
     Then the OCS status code should be "100"
     And the HTTP status code should be "200"
@@ -90,6 +105,13 @@ Feature: accept/decline shares coming from internal users
       | path               |
       | /PARENT (2)/       |
       | /textfile0 (2).txt |
+    And  the downloaded content when downloading file "/PARENT (2)/CHILD/child.txt" for user "user2" with range "bytes=19-28" should be "file child"
+    And  the downloaded content when downloading file "/textfile0 (2).txt" for user "user2" with range "bytes=14-24" should be "text file 0"
+    Examples:
+      | permissions |
+      | read        |
+      | change      |
+      | all         |
 
   @smokeTest
   Scenario: decline a share that has been auto-accepted
@@ -557,12 +579,12 @@ Feature: accept/decline shares coming from internal users
     Then the OCS status code should be "100"
     And the HTTP status code should be "200"
     And user "user1" should see the following elements
-      | /FOLDER/                 |
-      | /PARENT/                 |
-      | /PARENT%20(2)/           |
-      | /PARENT%20(2)/abc.txt    |
-      | /FOLDER%20(2)/           |
-      | /FOLDER%20(2)/abc.txt    |
+      | /FOLDER/              |
+      | /PARENT/              |
+      | /PARENT%20(2)/        |
+      | /PARENT%20(2)/abc.txt |
+      | /FOLDER%20(2)/        |
+      | /FOLDER%20(2)/abc.txt |
     And user "user1" should not see the following elements
       | /FOLDER/abc.txt |
       | /PARENT/abc.txt |
@@ -577,22 +599,22 @@ Feature: accept/decline shares coming from internal users
     Then the OCS status code should be "100"
     And the HTTP status code should be "200"
     And user "user1" should see the following elements
-      | /FOLDER/                 |
-      | /PARENT/                 |
-      | /PARENT%20(2)/           |
-      | /FOLDER%20(2)/           |
-      | /PARENT%20(2)/abc.txt    |
-      | /FOLDER%20(2)/abc.txt    |
+      | /FOLDER/              |
+      | /PARENT/              |
+      | /PARENT%20(2)/        |
+      | /FOLDER%20(2)/        |
+      | /PARENT%20(2)/abc.txt |
+      | /FOLDER%20(2)/abc.txt |
     And user "user1" should not see the following elements
       | /FOLDER/abc.txt |
       | /PARENT/abc.txt |
     And user "user2" should see the following elements
-      | /FOLDER/                 |
-      | /PARENT/                 |
-      | /PARENT%20(2)/           |
-      | /FOLDER%20(2)/           |
-      | /PARENT%20(2)/abc.txt    |
-      | /FOLDER%20(2)/abc.txt    |
+      | /FOLDER/              |
+      | /PARENT/              |
+      | /PARENT%20(2)/        |
+      | /FOLDER%20(2)/        |
+      | /PARENT%20(2)/abc.txt |
+      | /FOLDER%20(2)/abc.txt |
     And user "user2" should not see the following elements
       | /FOLDER/abc.txt |
       | /PARENT/abc.txt |
@@ -607,15 +629,15 @@ Feature: accept/decline shares coming from internal users
     Then the OCS status code should be "100"
     And the HTTP status code should be "200"
     And user "user1" should see the following elements
-      | /textfile0.txt                 |
-      | /textfile1.txt                 |
-      | /textfile0%20(2).txt           |
-      | /textfile1%20(2).txt           |
+      | /textfile0.txt       |
+      | /textfile1.txt       |
+      | /textfile0%20(2).txt |
+      | /textfile1%20(2).txt |
     And user "user2" should see the following elements
-      | /textfile0.txt                 |
-      | /textfile1.txt                 |
-      | /textfile0%20(2).txt           |
-      | /textfile1%20(2).txt           |
+      | /textfile0.txt       |
+      | /textfile1.txt       |
+      | /textfile0%20(2).txt |
+      | /textfile1%20(2).txt |
 
   Scenario: user shares resource with matching resource-name with another user when auto accept is disabled
     Given parameter "shareapi_auto_accept_share" of app "core" has been set to "no"
@@ -624,18 +646,18 @@ Feature: accept/decline shares coming from internal users
     Then the OCS status code should be "100"
     And the HTTP status code should be "200"
     And user "user1" should see the following elements
-      | /PARENT/                 |
-      | /textfile0.txt           |
+      | /PARENT/       |
+      | /textfile0.txt |
     But user "user1" should not see the following elements
-      | /textfile0%20(2).txt     |
-      | /PARENT%20(2)/           |
+      | /textfile0%20(2).txt |
+      | /PARENT%20(2)/       |
     When user "user1" accepts the share "/textfile0.txt" offered by user "user0" using the sharing API
     And user "user1" accepts the share "/PARENT" offered by user "user0" using the sharing API
     Then user "user1" should see the following elements
-      | /PARENT/                 |
-      | /textfile0.txt           |
-      | /PARENT%20(2)/           |
-      | /textfile0%20(2).txt     |
+      | /PARENT/             |
+      | /textfile0.txt       |
+      | /PARENT%20(2)/       |
+      | /textfile0%20(2).txt |
 
   Scenario: user shares file in a group with matching filename when auto accept is disabled
     Given parameter "shareapi_auto_accept_share" of app "core" has been set to "no"
@@ -643,37 +665,37 @@ Feature: accept/decline shares coming from internal users
     Then the OCS status code should be "100"
     And the HTTP status code should be "200"
     And user "user1" should see the following elements
-      | /textfile0.txt                 |
+      | /textfile0.txt |
     But user "user1" should not see the following elements
-      | /textfile0%20(2).txt           |
+      | /textfile0%20(2).txt |
     And user "user2" should see the following elements
-      | /textfile0.txt                 |
+      | /textfile0.txt |
     But user "user2" should not see the following elements
-      | /textfile0%20(2).txt           |
+      | /textfile0%20(2).txt |
     When user "user1" accepts the share "/textfile0.txt" offered by user "user0" using the sharing API
     Then user "user1" should see the following elements
-      | /textfile0.txt                 |
-      | /textfile0%20(2).txt           |
+      | /textfile0.txt       |
+      | /textfile0%20(2).txt |
     When user "user2" accepts the share "/textfile0.txt" offered by user "user0" using the sharing API
     Then user "user2" should see the following elements
-      | /textfile0.txt                 |
-      | /textfile0%20(2).txt           |
+      | /textfile0.txt       |
+      | /textfile0%20(2).txt |
 
   @skipOnLDAP
   Scenario: user shares folder with matching folder name a user before that user has logged in
     Given these users have been created with skeleton files but not initialized:
-      | username     |
-      | user3        |
+      | username |
+      | user3    |
     And user "user0" uploads file with content "uploaded content" to "/PARENT/abc.txt" using the WebDAV API
     When user "user0" shares folder "/PARENT" with user "user3" using the sharing API
     Then user "user3" should see the following elements
-      | /PARENT/          |
-      | /PARENT/abc.txt   |
-      | /FOLDER/          |
-      | /textfile0.txt    |
-      | /textfile1.txt    |
-      | /textfile2.txt    |
-      | /textfile3.txt    |
+      | /PARENT/        |
+      | /PARENT/abc.txt |
+      | /FOLDER/        |
+      | /textfile0.txt  |
+      | /textfile1.txt  |
+      | /textfile2.txt  |
+      | /textfile3.txt  |
     And user "user3" should not see the following elements
-      | /PARENT%20(2)/    |
+      | /PARENT%20(2)/ |
     And the content of file "/PARENT/abc.txt" for user "user3" should be "uploaded content"

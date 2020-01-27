@@ -71,11 +71,13 @@ class WebDavPropertiesContext implements Context {
 	 * @param TableNode|null $propertiesTable
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function userGetsPropertiesOfFolder(
 		$user, $path, $propertiesTable
 	) {
 		$properties = null;
+		$this->featureContext->verifyTableNodeColumnsCount($propertiesTable, 1);
 		if ($propertiesTable instanceof TableNode) {
 			foreach ($propertiesTable->getRows() as $row) {
 				$properties[] = $row[0];
@@ -93,6 +95,7 @@ class WebDavPropertiesContext implements Context {
 	 * @param TableNode|null $propertiesTable
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theUserGetsPropertiesOfFolder($path, $propertiesTable) {
 		$this->userGetsPropertiesOfFolder(
@@ -109,6 +112,7 @@ class WebDavPropertiesContext implements Context {
 	 * @param string $path
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function userGetsPropertiesOfFile(
 		$user, $propertyName, $namespace, $path
@@ -135,7 +139,7 @@ class WebDavPropertiesContext implements Context {
 	 * @return void
 	 */
 	public function publicGetsThePropertiesOfFolder($path, TableNode $propertiesTable) {
-		$user = (string)$this->featureContext->getLastShareData()->data->token;
+		$user = (string) $this->featureContext->getLastShareData()->data->token;
 		$properties = null;
 		if ($propertiesTable instanceof TableNode) {
 			foreach ($propertiesTable->getRows() as $row) {
@@ -148,7 +152,53 @@ class WebDavPropertiesContext implements Context {
 	}
 
 	/**
+	 * @param string $user user id who sets the property
+	 * @param string $propertyName name of property in Clark notation
+	 * @param string $namespace namespace in form of "x1='http://whatever.org/ns'"
+	 * @param string $path path on which to set properties to
+	 * @param string $propertyValue property value
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function setPropertyWithNamespaceOfResource(
+		$user, $propertyName, $namespace, $path, $propertyValue
+	) {
+		$response =  WebDavHelper::proppatch(
+			$this->featureContext->getBaseUrl(),
+			$this->featureContext->getActualUsername($user),
+			$this->featureContext->getUserPassword($user), $path,
+			$propertyName, $propertyValue, $namespace,
+			$this->featureContext->getDavPathVersion()
+		);
+		$this->featureContext->setResponse($response);
+	}
+
+	/**
 	 * @When /^user "([^"]*)" sets property "([^"]*)"  with namespace "([^"]*)" of (?:file|folder|entry) "([^"]*)" to "([^"]*)" using the WebDAV API$/
+	 *
+	 * @param string $user user id who sets the property
+	 * @param string $propertyName name of property in Clark notation
+	 * @param string $namespace namespace in form of "x1='http://whatever.org/ns'"
+	 * @param string $path path on which to set properties to
+	 * @param string $propertyValue property value
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function userSetsPropertyWithNamespaceOfEntryTo(
+		$user, $propertyName, $namespace, $path, $propertyValue
+	) {
+		$this->setPropertyWithNamespaceOfResource(
+			$user,
+			$propertyName,
+			$namespace,
+			$path,
+			$propertyValue
+		);
+	}
+
+	/**
 	 * @Given /^user "([^"]*)" has set property "([^"]*)" with namespace "([^"]*)" of (?:file|folder|entry) "([^"]*)" to "([^"]*)"$/
 	 *
 	 * @param string $user user id who sets the property
@@ -158,17 +208,19 @@ class WebDavPropertiesContext implements Context {
 	 * @param string $propertyValue property value
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function userHasSetPropertyWithNamespaceOfEntryTo(
 		$user, $propertyName, $namespace, $path, $propertyValue
 	) {
-		WebDavHelper::proppatch(
-			$this->featureContext->getBaseUrl(),
-			$this->featureContext->getActualUsername($user),
-			$this->featureContext->getUserPassword($user), $path,
-			$propertyName, $propertyValue, $namespace,
-			$this->featureContext->getDavPathVersion()
+		$this->setPropertyWithNamespaceOfResource(
+			$user,
+			$propertyName,
+			$namespace,
+			$path,
+			$propertyValue
 		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
 	}
 
 	/**
@@ -331,7 +383,7 @@ class WebDavPropertiesContext implements Context {
 		);
 		$value = $xmlPart[0]->__toString();
 		$pattern = $this->featureContext->substituteInLineCodes(
-			$pattern, ['preg_quote' => ['/'] ]
+			$pattern, ['preg_quote' => ['/']]
 		);
 		Assert::assertRegExp(
 			$pattern, $value,
@@ -430,8 +482,9 @@ class WebDavPropertiesContext implements Context {
 	 * @throws \Exception
 	 */
 	public function theResponseShouldContainAShareTypesPropertyWith($table) {
+		$this->featureContext->verifyTableNodeColumnsCount($table, 1);
 		WebdavTest::assertResponseContainsShareTypes(
-			$this->featureContext->getResponseXmlObject(), $table
+			$this->featureContext->getResponseXmlObject(), $table->getRows()
 		);
 	}
 
@@ -456,21 +509,55 @@ class WebDavPropertiesContext implements Context {
 	}
 
 	/**
-	 * @When user :user stores etag of element :path using the WebDAV API
-	 * @Given user :user has stored etag of element :path
-	 *
 	 * @param string $user
 	 * @param string $path
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
-	public function userStoresEtagOfElement($user, $path) {
+	public function storeEtagOfElement($user, $path) {
 		$propertiesTable = new TableNode([['getetag']]);
 		$this->userGetsPropertiesOfFolder(
 			$user, $path, $propertiesTable
 		);
 		$this->storedETAG[$user][$path]
 			= $this->featureContext->getEtagFromResponseXmlObject();
+	}
+
+	/**
+	 * @When user :user stores etag of element :path using the WebDAV API
+	 *
+	 * @param string $user
+	 * @param string $path
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function userStoresEtagOfElement($user, $path) {
+		$this->storeEtagOfElement(
+			$user,
+			$path
+		);
+	}
+
+	/**
+	 * @Given user :user has stored etag of element :path
+	 *
+	 * @param string $user
+	 * @param string $path
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function userHasStoredEtagOfElement($user, $path) {
+		$this->storeEtagOfElement(
+			$user,
+			$path
+		);
+		Assert::assertNotNull(
+			$this->storedETAG[$user][$path],
+			'Expected stored etag to be some string but found null!'
+		);
 	}
 
 	/**

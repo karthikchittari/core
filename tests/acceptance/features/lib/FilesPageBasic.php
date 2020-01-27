@@ -360,8 +360,8 @@ abstract class FilesPageBasic extends OwncloudPage {
 	/**
 	 * gets a details dialog object
 	 *
-	 * @throws ElementNotFoundException
 	 * @return DetailsDialog
+	 * @throws ElementNotFoundException
 	 */
 	public function getDetailsDialog() {
 		$detailsDialogElement = $this->find("xpath", $this->detailsDialogXpath);
@@ -383,8 +383,8 @@ abstract class FilesPageBasic extends OwncloudPage {
 
 	/**
 	 *
-	 * @throws ElementNotFoundException
 	 * @return NodeElement
+	 * @throws ElementNotFoundException
 	 */
 	public function findSelectAllFilesBtn() {
 		$selectedAllFilesBtn = $this->find(
@@ -424,8 +424,8 @@ abstract class FilesPageBasic extends OwncloudPage {
 	 *
 	 * @param int $number
 	 *
-	 * @throws ElementNotFoundException
 	 * @return NodeElement
+	 * @throws ElementNotFoundException
 	 */
 	public function findFileActionsMenuBtnByNo($number) {
 		$xpathLocator = \sprintf($this->fileActionMenuBtnXpathByNo, $number);
@@ -533,7 +533,7 @@ abstract class FilesPageBasic extends OwncloudPage {
 					);
 					$fileListIsVisible = false;
 				}
-				
+
 				if ($fileListIsVisible
 					&& $fileList->has("xpath", "//a")
 				) {
@@ -606,8 +606,8 @@ abstract class FilesPageBasic extends OwncloudPage {
 	}
 
 	/**
-	 * @throws ElementNotFoundException
 	 * @return void
+	 * @throws ElementNotFoundException
 	 */
 	public function enableShowHiddenFilesSettings() {
 		$appSettingsButton = $this->find('xpath', $this->appSettingsXpath);
@@ -638,7 +638,7 @@ abstract class FilesPageBasic extends OwncloudPage {
 			\usleep(STANDARD_SLEEP_TIME_MICROSEC);
 			$currentTime = \microtime(true);
 		}
-		
+
 		$showHiddenFilesCheckBox = $this->find(
 			'xpath', $this->showHiddenFilesCheckboxXpath
 		);

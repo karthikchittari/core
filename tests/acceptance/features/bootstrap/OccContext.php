@@ -25,6 +25,7 @@ use Behat\Behat\Hook\Scope\BeforeScenarioScope;
 use Behat\Gherkin\Node\TableNode;
 use PHPUnit\Framework\Assert;
 use TestHelpers\SetupHelper;
+use Behat\Gherkin\Node\PyStringNode;
 
 require_once 'bootstrap.php';
 
@@ -57,6 +58,14 @@ class OccContext implements Context {
 	private $lastDeletedJobId;
 
 	/**
+	 * ToDo: remove all the tech_preview test code after official release of
+	 *       10.4 and we no longer need to test against 10.3.* as "latest"
+	 *
+	 * @var boolean
+	 */
+	private $doTechPreview = false;
+
+	/**
 	 * @var boolean techPreviewEnabled
 	 */
 	private $techPreviewEnabled = false;
@@ -74,56 +83,54 @@ class OccContext implements Context {
 	}
 
 	/**
-	 * @Given the administrator has enabled DAV tech_preview
-	 * @When the administrator enables DAV tech_preview
-	 *
-	 * @return bool true if DAV Tech Preview was disabled and had to be enabled
+	 * @return boolean
+	 * @throws Exception
 	 */
 	public function enableDAVTechPreview() {
-		if (!$this->isTechPreviewEnabled()) {
-			$this->theAdministratorAddsSystemConfigKeyWithValueUsingTheOccCommand(
-				"dav.enable.tech_preview", "true", "boolean"
+		if ($this->doTechPreview) {
+			if (!$this->isTechPreviewEnabled()) {
+				$this->addSystemConfigKeyUsingTheOccCommand(
+					"dav.enable.tech_preview", "true", "boolean"
+				);
+				$this->techPreviewEnabled = true;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * @return boolean true if delete-system-config-key was done
+	 * @throws Exception
+	 */
+	public function disableDAVTechPreview() {
+		if ($this->doTechPreview) {
+			$this->deleteSystemConfigKeyUsingTheOccCommand(
+				"dav.enable.tech_preview"
 			);
-			$this->techPreviewEnabled = true;
+			$this->techPreviewEnabled = false;
 			return true;
 		}
 		return false;
 	}
 
 	/**
-	 * @Given the administrator has disabled DAV tech_preview
-	 * @When the administrator disables DAV tech_preview
-	 *
-	 * @return void
-	 */
-	public function disableDAVTechPreview() {
-		$this->theAdministratorDeletesSystemConfigKeyUsingTheOccCommand(
-			"dav.enable.tech_preview"
-		);
-		$this->techPreviewEnabled = false;
-	}
-
-	/**
-	 * @When /^the administrator invokes occ command "([^"]*)"$/
-	 * @Given /^the administrator has invoked occ command "([^"]*)"$/
-	 *
 	 * @param string $cmd
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function invokingTheCommand($cmd) {
 		$this->featureContext->runOcc([$cmd]);
 	}
 
 	/**
-	 * @When the administrator imports security certificate from the path :path
-	 * @Given the administrator has imported security certificate from the path :path
-	 *
 	 * @param string $path
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
-	public function theAdministratorImportsSecurityCertificateFromThePath($path) {
+	public function importSecurityCertificateFromPath($path) {
 		$this->invokingTheCommand("security:certificates:import " . $path);
 		$pathComponents = \explode("/", $path);
 		$certificate = \end($pathComponents);
@@ -131,21 +138,6 @@ class OccContext implements Context {
 	}
 
 	/**
-	 * @When the administrator removes the security certificate :certificate
-	 *
-	 * @param string $certificate
-	 *
-	 * @return void
-	 */
-	public function theAdministratorRemovesTheSecurityCertificate($certificate) {
-		$this->invokingTheCommand("security:certificates:remove " . $certificate);
-		\array_push($this->removedCertificates, $certificate);
-	}
-
-	/**
-	 * @When /^the administrator invokes occ command "([^"]*)" with environment variable "([^"]*)" set to "([^"]*)"$/
-	 * @Given /^the administrator has invoked occ command "([^"]*)" with environment variable "([^"]*)" set to "([^"]*)"$/
-	 *
 	 * @param string $cmd
 	 * @param string $envVariableName
 	 * @param string $envVariableValue
@@ -160,6 +152,388 @@ class OccContext implements Context {
 		$this->featureContext->runOccWithEnvVariables(
 			$args, [$envVariableName => $envVariableValue]
 		);
+	}
+
+	/**
+	 * @param string $mode
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function changeBackgroundJobsModeUsingTheOccCommand($mode) {
+		$this->invokingTheCommand("background:$mode");
+	}
+
+	/**
+	 * @param string $mountPoint
+	 * @param boolean $setting
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function setExtStorageReadOnlyUsingTheOccCommand($mountPoint, $setting = true) {
+		$command = "files_external:option";
+
+		$mountId = $this->featureContext->getStorageId($mountPoint);
+
+		$key = "read_only";
+
+		if ($setting) {
+			$value = "1";
+		} else {
+			$value = "0";
+		}
+
+		$this->invokingTheCommand(
+			"$command $mountId $key $value"
+		);
+	}
+
+	/**
+	 * @param string $mountPoint
+	 * @param string $setting "never" (switch it off) otherwise "Once every direct access"
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function setExtStorageCheckChangesUsingTheOccCommand($mountPoint, $setting) {
+		$command = "files_external:option";
+
+		$mountId = $this->featureContext->getStorageId($mountPoint);
+
+		$key = "filesystem_check_changes";
+
+		if ($setting === "never") {
+			$value = "0";
+		} else {
+			$value = "1";
+		}
+
+		$this->invokingTheCommand(
+			"$command $mountId $key $value"
+		);
+	}
+
+	/**
+	 * @return void
+	 * @throws Exception
+	 */
+	public function scanFileSystemForAllUsersUsingTheOccCommand() {
+		$this->invokingTheCommand(
+			"files:scan --all"
+		);
+	}
+
+	/**
+	 * @param string $user
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function scanFileSystemForAUserUsingTheOccCommand($user) {
+		$this->invokingTheCommand(
+			"files:scan $user"
+		);
+	}
+
+	/**
+	 * @param string $path
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function scanFileSystemPathUsingTheOccCommand($path) {
+		$this->invokingTheCommand(
+			"files:scan --path='$path'"
+		);
+	}
+
+	/**
+	 * @param string $group
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function scanFileSystemForAGroupUsingTheOccCommand($group) {
+		$this->invokingTheCommand(
+			"files:scan --group=$group"
+		);
+	}
+
+	/**
+	 * @param string $groups
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function scanFileSystemForGroupsUsingTheOccCommand($groups) {
+		$this->invokingTheCommand(
+			"files:scan --groups=$groups"
+		);
+	}
+
+	/**
+	 * @param string $mount
+	 *
+	 * @return void
+	 */
+	public function createLocalStorageMountUsingTheOccCommand($mount) {
+		$result = SetupHelper::createLocalStorageMount($mount);
+		$storageId = $result['storageId'];
+		$this->featureContext->setResultOfOccCommand($result);
+		$this->featureContext->addStorageId($mount, $storageId);
+	}
+
+	/**
+	 * @param string $key
+	 * @param string $value
+	 * @param string $app
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function addConfigKeyWithValueInAppUsingTheOccCommand($key, $value, $app) {
+		$this->invokingTheCommand(
+			"config:app:set --value ${value} ${app} ${key}"
+		);
+	}
+
+	/**
+	 * @param string $key
+	 * @param string $app
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function deleteConfigKeyOfAppUsingTheOccCommand($key, $app) {
+		$this->invokingTheCommand(
+			"config:app:delete ${app} ${key}"
+		);
+	}
+
+	/**
+	 * @param string $key
+	 * @param string $value
+	 * @param string $type
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function addSystemConfigKeyUsingTheOccCommand(
+		$key, $value, $type = "string"
+	) {
+		$this->invokingTheCommand(
+			"config:system:set --value ${value} --type ${type} ${key}"
+		);
+	}
+
+	/**
+	 * @param string $key
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function deleteSystemConfigKeyUsingTheOccCommand($key) {
+		$this->invokingTheCommand(
+			"config:system:delete ${key}"
+		);
+	}
+
+	/**
+	 * @param string $user
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function emptyTrashBinOfUserUsingOccCommand($user) {
+		$this->invokingTheCommand(
+			"trashbin:cleanup $user"
+		);
+	}
+
+	/**
+	 * @return void
+	 * @throws Exception
+	 */
+	public function getAllJobsInBackgroundQueueUsingOccCommand() {
+		$this->invokingTheCommand(
+			"background:queue:status"
+		);
+	}
+
+	/**
+	 * @param string $user
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function deleteAllVersionsForUserUsingOccCommand($user) {
+		$this->invokingTheCommand(
+			"versions:cleanup $user"
+		);
+	}
+
+	/**
+	 * @return void
+	 * @throws Exception
+	 */
+	public function deleteAllVersionsForAllUsersUsingTheOccCommand() {
+		$this->invokingTheCommand(
+			"versions:cleanup"
+		);
+	}
+
+	/**
+	 * @param string $job
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function deleteLastBackgroundJobUsingTheOccCommand($job) {
+		$match = $this->getLastJobIdForJob($job);
+		if ($match === false) {
+			throw new \Exception("Couldn't find jobId for given job: $job");
+		}
+		$this->invokingTheCommand(
+			"background:queue:delete $match"
+		);
+		$this->lastDeletedJobId = $match;
+	}
+
+	/**
+	 * List created local storage mount
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function listLocalStorageMount() {
+		$this->invokingTheCommand('files_external:list --output=json');
+	}
+
+	/**
+	 * @When the administrator enables DAV tech_preview
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorEnablesDAVTechPreview() {
+		$this->enableDAVTechPreview();
+	}
+
+	/**
+	 * @Given the administrator has enabled DAV tech_preview
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorHasEnabledDAVTechPreview() {
+		if ($this->enableDAVTechPreview()) {
+			$this->theCommandShouldHaveBeenSuccessful();
+		}
+	}
+
+	/**
+	 * @When /^the administrator invokes occ command "([^"]*)"$/
+	 *
+	 * @param string $cmd
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorInvokesOccCommand($cmd) {
+		$this->invokingTheCommand($cmd);
+	}
+
+	/**
+	 * @Given /^the administrator has invoked occ command "([^"]*)"$/
+	 *
+	 * @param string $cmd
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorHasInvokedOccCommand($cmd) {
+		$this->invokingTheCommand($cmd);
+		$this->theCommandShouldHaveBeenSuccessful();
+	}
+
+	/**
+	 * @When the administrator imports security certificate from the path :path
+	 *
+	 * @param string $path
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorImportsSecurityCertificateFromThePath($path) {
+		$this->importSecurityCertificateFromPath($path);
+	}
+
+	/**
+	 * @Given the administrator has imported security certificate from the path :path
+	 *
+	 * @param string $path
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorHasImportedSecurityCertificateFromThePath($path) {
+		$this->importSecurityCertificateFromPath($path);
+		$this->theCommandShouldHaveBeenSuccessful();
+	}
+
+	/**
+	 * @When the administrator removes the security certificate :certificate
+	 *
+	 * @param string $certificate
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorRemovesTheSecurityCertificate($certificate) {
+		$this->invokingTheCommand("security:certificates:remove " . $certificate);
+		\array_push($this->removedCertificates, $certificate);
+	}
+
+	/**
+	 * @When /^the administrator invokes occ command "([^"]*)" with environment variable "([^"]*)" set to "([^"]*)"$/
+	 *
+	 * @param string $cmd
+	 * @param string $envVariableName
+	 * @param string $envVariableValue
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorInvokesOccCommandWithEnvironmentVariable(
+		$cmd, $envVariableName, $envVariableValue
+	) {
+		$this->invokingTheCommandWithEnvVariable(
+			$cmd,
+			$envVariableName,
+			$envVariableValue
+		);
+	}
+
+	/**
+	 * @Given /^the administrator has invoked occ command "([^"]*)" with environment variable "([^"]*)" set to "([^"]*)"$/
+	 *
+	 * @param string $cmd
+	 * @param string $envVariableName
+	 * @param string $envVariableValue
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorHasInvokedOccCommandWithEnvironmentVariable(
+		$cmd, $envVariableName, $envVariableValue
+	) {
+		$this->invokingTheCommandWithEnvVariable(
+			$cmd,
+			$envVariableName,
+			$envVariableValue
+		);
+		$this->theCommandShouldHaveBeenSuccessful();
 	}
 
 	/**
@@ -186,11 +560,11 @@ class OccContext implements Context {
 		$exitStatusCode = $this->featureContext->getExitStatusCodeOfOccCommand();
 		if ($exitStatusCode !== 0) {
 			$msg = "The command was not successful, exit code was " .
-				   $exitStatusCode . ".\n" .
-				   "stdOut was: '" .
-				   $this->featureContext->getStdOutOfOccCommand() . "'\n" .
-				   "stdErr was: '" .
-				   $this->featureContext->getStdErrOfOccCommand() . "'\n";
+				$exitStatusCode . ".\n" .
+				"stdOut was: '" .
+				$this->featureContext->getStdOutOfOccCommand() . "'\n" .
+				"stdErr was: '" .
+				$this->featureContext->getStdErrOfOccCommand() . "'\n";
 			if (!empty($exceptions)) {
 				$msg .= ' Exceptions: ' . \implode(', ', $exceptions);
 			}
@@ -212,7 +586,7 @@ class OccContext implements Context {
 	 */
 	public function theCommandFailedWithExitCode($exitCode) {
 		$exitStatusCode = $this->featureContext->getExitStatusCodeOfOccCommand();
-		if ($exitStatusCode !== (int)$exitCode) {
+		if ($exitStatusCode !== (int) $exitCode) {
 			throw new \Exception(
 				"The command was expected to fail with exit code $exitCode but got "
 				. $exitStatusCode
@@ -254,7 +628,7 @@ class OccContext implements Context {
 		// end of the captured string, so trim them.
 		$text = \trim($text, $text[0]);
 		$commandOutput = $this->featureContext->getStdOutOfOccCommand();
-		$lines = $this->featureContext->findLines(
+		$lines = SetupHelper::findLines(
 			$commandOutput,
 			$text
 		);
@@ -280,7 +654,7 @@ class OccContext implements Context {
 		// end of the captured string, so trim them.
 		$text = \trim($text, $text[0]);
 		$commandOutput = $this->featureContext->getStdErrOfOccCommand();
-		$lines = $this->featureContext->findLines(
+		$lines = SetupHelper::findLines(
 			$commandOutput,
 			$text
 		);
@@ -314,9 +688,10 @@ class OccContext implements Context {
 	 * @param string $folder
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorHasSetTheDefaultFolderForReceivedSharesTo($folder) {
-		$this->theAdministratorAddsSystemConfigKeyWithValueUsingTheOccCommand(
+		$this->addSystemConfigKeyUsingTheOccCommand(
 			"share_folder", $folder
 		);
 	}
@@ -327,9 +702,10 @@ class OccContext implements Context {
 	 * @param string $smtpmode
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorHasSetTheMailSmtpmodeTo($smtpmode) {
-		$this->theAdministratorAddsSystemConfigKeyWithValueUsingTheOccCommand(
+		$this->addSystemConfigKeyUsingTheOccCommand(
 			"mail_smtpmode", $smtpmode
 		);
 	}
@@ -340,6 +716,7 @@ class OccContext implements Context {
 	 * @param string $level
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorSetsLogLevelUsingTheOccCommand($level) {
 		$this->invokingTheCommand(
@@ -353,6 +730,7 @@ class OccContext implements Context {
 	 * @param string $timezone
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorSetsTimeZoneUsingTheOccCommand($timezone) {
 		$this->invokingTheCommand(
@@ -366,6 +744,7 @@ class OccContext implements Context {
 	 * @param string $backend
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorSetsBackendUsingTheOccCommand($backend) {
 		$this->invokingTheCommand(
@@ -377,6 +756,7 @@ class OccContext implements Context {
 	 * @When the administrator enables the ownCloud backend using the occ command
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorEnablesOwnCloudBackendUsingTheOccCommand() {
 		$this->invokingTheCommand(
@@ -390,6 +770,7 @@ class OccContext implements Context {
 	 * @param string $path
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorSetsLogFilePathUsingTheOccCommand($path) {
 		$this->invokingTheCommand(
@@ -403,6 +784,7 @@ class OccContext implements Context {
 	 * @param string $size
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorSetsLogRotateFileSizeUsingTheOccCommand($size) {
 		$this->invokingTheCommand(
@@ -411,86 +793,183 @@ class OccContext implements Context {
 	}
 
 	/**
+	 * @Then the command output should be:
+	 *
+	 * @param PyStringNode $content
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theCommandOutputShouldBe(PyStringNode $content) {
+		$commandOutput = $this->featureContext->getStdOutOfOccCommand();
+		// removing blank lines
+		$commandOutput = \implode("\n", \array_filter(\explode("\n", $commandOutput)));
+		$content = \implode("\n", \array_filter(\explode("\n", $content->getRaw())));
+		Assert::assertEquals(
+			$content, $commandOutput
+		);
+	}
+
+	/**
 	 * @When the administrator changes the background jobs mode to :mode using the occ command
+	 *
+	 * @param string $mode
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorChangesTheBackgroundJobsModeTo($mode) {
+		$this->changeBackgroundJobsModeUsingTheOccCommand($mode);
+	}
+
+	/**
 	 * @Given the administrator has changed the background jobs mode to :mode
 	 *
 	 * @param string $mode
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorHasChangedTheBackgroundJobsModeTo($mode) {
-		$this->invokingTheCommand("background:$mode");
+		$this->changeBackgroundJobsModeUsingTheOccCommand($mode);
 	}
 
 	/**
-	 * @Given the administrator has set the external storage :mountPoint to be never scanned automatically
+	 * @When the administrator sets the external storage :mountPoint to read-only using the occ command
+	 *
+	 * @param string $mountPoint
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdminSetsTheExtStorageToReadOnly($mountPoint) {
+		$this->setExtStorageReadOnlyUsingTheOccCommand($mountPoint);
+	}
+
+	/**
+	 * @Given the administrator has set the external storage :mountPoint to read-only
+	 *
+	 * @param string $mountPoint
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdminHasSetTheExtStorageToReadOnly($mountPoint) {
+		$this->setExtStorageReadOnlyUsingTheOccCommand($mountPoint);
+		$this->theCommandShouldHaveBeenSuccessful();
+	}
+
+	/**
 	 * @When the administrator sets the external storage :mountPoint to be never scanned automatically using the occ command
 	 *
 	 * @param string $mountPoint
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
-	public function theAdministratorHasSetTheExtStorageWithMountPoint($mountPoint) {
-		$command = "files:external:option";
+	public function theAdminSetsTheExtStorageToBeNeverScannedAutomatically($mountPoint) {
+		$this->setExtStorageCheckChangesUsingTheOccCommand($mountPoint, "never");
+	}
 
-		// get the first mount id created in before scenario
-		$mountId = $this->featureContext->getStorageId($mountPoint);
-
-		// $mountId should have been set. If not, @local_storage BeforeScenario never ran
-		\assert($mountId !== null);
-
-		$key = "filesystem_check_changes";
-
-		// "0" is "Never", "1" is "Once every direct access"
-		$value = 0;
-
-		$this->invokingTheCommand(
-			"$command $mountId $key $value"
-		);
+	/**
+	 * @Given the administrator has set the external storage :mountPoint to be never scanned automatically
+	 *
+	 * @param string $mountPoint
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdminHasSetTheExtStorageToBeNeverScannedAutomatically($mountPoint) {
+		$this->setExtStorageCheckChangesUsingTheOccCommand($mountPoint, "never");
+		$this->theCommandShouldHaveBeenSuccessful();
 	}
 
 	/**
 	 * @When the administrator scans the filesystem for all users using the occ command
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorScansTheFilesystemForAllUsersUsingTheOccCommand() {
+		$this->scanFileSystemForAllUsersUsingTheOccCommand();
+	}
+
+	/**
 	 * @Given the administrator has scanned the filesystem for all users
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
-	public function theAdministratorScansTheFilesystemForAllUsersUsingTheOccCommand() {
-		$this->invokingTheCommand(
-			"files:scan --all"
-		);
+	public function theAdministratorHasScannedTheFilesystemForAllUsersUsingTheOccCommand() {
+		$this->scanFileSystemForAllUsersUsingTheOccCommand();
+		$this->theCommandShouldHaveBeenSuccessful();
 	}
 
 	/**
 	 * @When the administrator scans the filesystem for user :user using the occ command
+	 *
+	 * @param string $user
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorScansTheFilesystemForUserUsingTheOccCommand($user) {
+		$this->scanFileSystemForAUserUsingTheOccCommand($user);
+	}
+
+	/**
 	 * @Given the administrator has scanned the filesystem for user :user
 	 *
 	 * @param string $user
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
-	public function theAdministratorScansTheFilesystemForUserUsingTheOccCommand($user) {
-		$this->invokingTheCommand(
-			"files:scan $user"
-		);
+	public function theAdministratorHasScannedTheFilesystemForUserUsingTheOccCommand($user) {
+		$this->scanFileSystemForAUserUsingTheOccCommand($user);
+		$this->theCommandShouldHaveBeenSuccessful();
 	}
 
 	/**
 	 * @When the administrator scans the filesystem in path :path using the occ command
+	 *
+	 * @param string $path
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorScansTheFilesystemInPathUsingTheOccCommand($path) {
+		$this->scanFileSystemPathUsingTheOccCommand($path);
+	}
+
+	/**
 	 * @Given the administrator scans the filesystem in path :path
 	 *
 	 * @param string $path
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
-	public function theAdministratorScansTheFilesystemInPathUsingTheOccCommand($path) {
-		$this->invokingTheCommand(
-			"files:scan --path='$path'"
-		);
+	public function theAdministratorHasScannedTheFilesystemInPathUsingTheOccCommand($path) {
+		$this->scanFileSystemPathUsingTheOccCommand($path);
+		$this->theCommandShouldHaveBeenSuccessful();
 	}
 
 	/**
 	 * @When the administrator scans the filesystem for group :group using the occ command
+	 *
+	 * Used to test the --group option of the files:scan command
+	 *
+	 * @param string $group a single group name
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorScansTheFilesystemForGroupUsingTheOccCommand($group) {
+		$this->scanFileSystemForAGroupUsingTheOccCommand($group);
+	}
+
+	/**
 	 * @Given the administrator has scanned the filesystem for group :group
 	 *
 	 * Used to test the --group option of the files:scan command
@@ -498,15 +977,27 @@ class OccContext implements Context {
 	 * @param string $group a single group name
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
-	public function theAdministratorScansTheFilesystemForGroupUsingTheOccCommand($group) {
-		$this->invokingTheCommand(
-			"files:scan --group=$group"
-		);
+	public function theAdministratorHasScannedTheFilesystemForGroupUsingTheOccCommand($group) {
+		$this->scanFileSystemForAGroupUsingTheOccCommand($group);
 	}
 
 	/**
 	 * @When the administrator scans the filesystem for groups list :groups using the occ command
+	 *
+	 * Used to test the --groups option of the files:scan command
+	 *
+	 * @param string $groups a comma-separated list of group names
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorScansTheFilesystemForGroupsUsingTheOccCommand($groups) {
+		$this->scanFileSystemForGroupsUsingTheOccCommand($groups);
+	}
+
+	/**
 	 * @Given the administrator has scanned the filesystem for groups list :groups
 	 *
 	 * Used to test the --groups option of the files:scan command
@@ -514,17 +1005,18 @@ class OccContext implements Context {
 	 * @param string $groups a comma-separated list of group names
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
-	public function theAdministratorScansTheFilesystemForGroupsUsingTheOccCommand($groups) {
-		$this->invokingTheCommand(
-			"files:scan --groups=$groups"
-		);
+	public function theAdministratorHasScannedTheFilesystemForGroupsUsingTheOccCommand($groups) {
+		$this->scanFileSystemForGroupsUsingTheOccCommand($groups);
+		$this->theCommandShouldHaveBeenSuccessful();
 	}
 
 	/**
 	 * @When the administrator cleanups the filesystem for all users using the occ command
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorCleanupsTheFilesystemForAllUsersUsingTheOccCommand() {
 		$this->invokingTheCommand(
@@ -534,30 +1026,37 @@ class OccContext implements Context {
 
 	/**
 	 * @When the administrator creates the local storage mount :mount using the occ command
+	 *
+	 * @param string $mount
+	 *
+	 * @return void
+	 */
+	public function theAdministratorCreatesTheLocalStorageMountUsingTheOccCommand($mount) {
+		$this->createLocalStorageMountUsingTheOccCommand($mount);
+	}
+
+	/**
 	 * @Given the administrator has created the local storage mount :mount
 	 *
 	 * @param string $mount
 	 *
 	 * @return void
 	 */
-	public function theAdministratorCreatesTheLocalStorageMountForAUserUsingTheOccCommand($mount) {
-		$storageId = SetupHelper::createLocalStorageMount($mount);
-		$this->featureContext->addStorageId($mount, $storageId);
+	public function theAdministratorHasCreatedTheLocalStorageMountUsingTheOccCommand($mount) {
+		$this->createLocalStorageMountUsingTheOccCommand($mount);
 	}
 
 	/**
-	 * @When /^the administrator (adds|removes) (user|group) "([^"]*)" (?:as|from) the applicable (?:user|group) for the last local storage mount using the occ command$/
-	 * @Given /^the administrator has (added|removed) (user|group) "([^"]*)" (?:as|from) the applicable (?:user|group) for the last local storage mount$/
-	 *
-	 * @param string $action
-	 * @param string $userOrGroup
-	 * @param string $user
+	 * @param $action
+	 * @param $userOrGroup
+	 * @param $userOrGroupName
+	 * @param $mountName
 	 *
 	 * @return void
-	 * @throws \Exception
+	 * @throws Exception
 	 */
-	public function theAdminAddsRemovesAsTheApplicableUserLastLocalMountUsingTheOccCommand(
-		$action, $userOrGroup, $user
+	public function addRemoveUserOrGroupToOrFromMount(
+		$action, $userOrGroup, $userOrGroupName, $mountName
 	) {
 		if ($action === "adds" || $action === "added") {
 			$action = "--add";
@@ -569,22 +1068,293 @@ class OccContext implements Context {
 		} else {
 			$action = "$action-group";
 		}
-		$storageIds = $this->featureContext->getStorageIds();
-		$lastMount = \end($storageIds);
+		$mountId = $this->featureContext->getStorageId($mountName);
 		$this->featureContext->runOcc(
 			[
 				'files_external:applicable',
-				$lastMount,
+				$mountId,
 				"$action ",
-				"$user"
+				"$userOrGroupName"
 			]
 		);
+	}
+
+	/**
+	 * @param $action
+	 * @param $userOrGroup
+	 * @param $userOrGroupName
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function addRemoveUserOrGroupToOrFromLastLocalMount(
+		$action, $userOrGroup, $userOrGroupName
+	) {
+		$storageIds = $this->featureContext->getStorageIds();
+		Assert::assertGreaterThan(
+			0,
+			\count($storageIds),
+			"addRemoveAsApplicableUserLastLocalMount no local mounts exist"
+		);
+		$lastMountName = \end($storageIds);
+		$this->addRemoveUserOrGroupToOrFromMount(
+			$action, $userOrGroup, $userOrGroupName, $lastMountName
+		);
+	}
+
+	/**
+	 * @When /^the administrator (adds|removes) (user|group) "([^"]*)" (?:as|from) the applicable (?:user|group) for the last local storage mount using the occ command$/
+	 *
+	 * @param string $action
+	 * @param string $userOrGroup
+	 * @param string $user
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theAdminAddsRemovesAsTheApplicableUserLastLocalMountUsingTheOccCommand(
+		$action, $userOrGroup, $user
+	) {
+		$this->addRemoveUserOrGroupToOrFromLastLocalMount(
+			$action,
+			$userOrGroup,
+			$user
+		);
+	}
+
+	/**
+	 * @Given /^the administrator has (added|removed) (user|group) "([^"]*)" (?:as|from) the applicable (?:user|group) for the last local storage mount$/
+	 *
+	 * @param string $action
+	 * @param string $userOrGroup
+	 * @param string $user
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theAdminHasAddedRemovedAsTheApplicableUserLastLocalMountUsingTheOccCommand(
+		$action, $userOrGroup, $user
+	) {
+		$this->addRemoveUserOrGroupToOrFromLastLocalMount(
+			$action,
+			$userOrGroup,
+			$user
+		);
+		$this->theCommandShouldHaveBeenSuccessful();
+	}
+
+	/**
+	 * @When /^the administrator (adds|removes) (user|group) "([^"]*)" (?:as|from) the applicable (?:user|group) for local storage mount "([^"]*)" using the occ command$/
+	 *
+	 * @param string $action
+	 * @param string $userOrGroup
+	 * @param string $user
+	 * @param string $mount
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theAdminAddsRemovesAsTheApplicableUserForMountUsingTheOccCommand(
+		$action, $userOrGroup, $user, $mount
+	) {
+		$this->addRemoveUserOrGroupToOrFromMount(
+			$action,
+			$userOrGroup,
+			$user,
+			$mount
+		);
+	}
+
+	/**
+	 * @Given /^the administrator has (added|removed) (user|group) "([^"]*)" (?:as|from) the applicable (?:user|group) for local storage mount "([^"]*)"$/
+	 *
+	 * @param string $action
+	 * @param string $userOrGroup
+	 * @param string $user
+	 * @param string $mount
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theAdminHasAddedRemovedTheApplicableUserForMountUsingTheOccCommand(
+		$action, $userOrGroup, $user, $mount
+	) {
+		$this->addRemoveUserOrGroupToOrFromMount(
+			$action,
+			$userOrGroup,
+			$user,
+			$mount
+		);
+		$this->theCommandShouldHaveBeenSuccessful();
+	}
+
+	/**
+	 * @When the administrator lists the local storage using the occ command
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function userListsLocalStorageMountUsingTheOccCommand() {
+		$this->listLocalStorageMount();
+	}
+
+	/**
+	 * @Then the following local storage should exist
+	 *
+	 * @param TableNode $mountPoints
+	 *
+	 * @return void
+	 */
+	public function theFollowingLocalStoragesShouldExist(TableNode $mountPoints) {
+		$createdLocalStorage = [];
+		$expectedLocalStorages = $mountPoints->getColumnsHash();
+		$commandOutput = \json_decode($this->featureContext->getStdOutOfOccCommand());
+		foreach ($commandOutput as $storageEntry) {
+			$createdLocalStorage[$storageEntry->mount_id] = \ltrim($storageEntry->mount_point, '/');
+		}
+		foreach ($expectedLocalStorages as $expectedStorageEntry) {
+			Assert::assertContains($expectedStorageEntry['localStorage'], $createdLocalStorage);
+		}
+	}
+
+	/**
+	 * @Then the following local storage should not exist
+	 *
+	 * @param TableNode $mountPoints
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theFollowingLocalStoragesShouldNotExist(TableNode $mountPoints) {
+		$createdLocalStorage = [];
+		$this->listLocalStorageMount();
+		$expectedLocalStorages = $mountPoints->getColumnsHash();
+		$commandOutput = \json_decode($this->featureContext->getStdOutOfOccCommand());
+		foreach ($commandOutput as $i) {
+			$createdLocalStorage[$i->mount_id] = \ltrim($i->mount_point, '/');
+		}
+		foreach ($expectedLocalStorages as $i) {
+			Assert::assertNotContains($i['localStorage'], $createdLocalStorage);
+		}
+	}
+
+	/**
+	 * @Then the following local storage should be listed:
+	 *
+	 * @param TableNode $table
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theFollowingLocalStorageShouldBeListed(TableNode $table) {
+		$expectedLocalStorages = $table->getColumnsHash();
+		$commandOutput = \json_decode($this->featureContext->getStdOutOfOccCommand());
+		foreach ($expectedLocalStorages as $expectedStorageEntry) {
+			$isStorageEntryListed = false;
+			foreach ($commandOutput as $listedStorageEntry) {
+				if ($expectedStorageEntry["MountPoint"] === $listedStorageEntry->mount_point) {
+					Assert::assertEquals($expectedStorageEntry['Storage'], $listedStorageEntry->storage, "Storage column does not have the expected value");
+					Assert::assertEquals($expectedStorageEntry['AuthenticationType'], $listedStorageEntry->authentication_type, "AuthenticationType column does not have the expected value");
+					Assert::assertStringStartsWith($expectedStorageEntry['Configuration'], $listedStorageEntry->configuration, "Configuration column does not have the expected value");
+					Assert::assertEquals($expectedStorageEntry['Options'], $listedStorageEntry->options, "Options column does not have the expected value");
+					Assert::assertEquals($expectedStorageEntry['ApplicableUsers'], $listedStorageEntry->applicable_users, "ApplicableUsers column does not have the expected value");
+					Assert::assertEquals($expectedStorageEntry['ApplicableGroups'], $listedStorageEntry->applicable_groups, "ApplicableGroups column does not have the expected value");
+					$isStorageEntryListed = true;
+				}
+			}
+			Assert::assertTrue($isStorageEntryListed, "Expected local storage {$expectedStorageEntry['MountPoint']} not found");
+		}
+	}
+
+	/**
+	 * @When the administrator deletes local storage :folder using the occ command
+	 *
+	 * @param string $folder
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function administratorDeletesFolder($folder) {
+		$createdLocalStorage = [];
+		$this->listLocalStorageMount();
+		$commandOutput = \json_decode($this->featureContext->getStdOutOfOccCommand());
+		foreach ($commandOutput as $i) {
+			$createdLocalStorage[$i->mount_id] = \ltrim($i->mount_point, '/');
+		}
+		foreach ($createdLocalStorage as $key => $value) {
+			if ($value === $folder) {
+				$mount_id = $key;
+			}
+		}
+		if (!isset($mount_id)) {
+			throw  new Exception("Id not found for folder to be deleted");
+		}
+		$this->invokingTheCommand('files_external:delete --yes ' . $mount_id);
+	}
+
+	/**
+	 * @When the administrator exports the local storage mounts using the occ command
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorExportsTheMountsUsingTheOccCommand() {
+		$this->invokingTheCommand('files_external:export');
+	}
+
+	/**
+	 * @When the administrator verifies the mount configuration for local storage :localStorage using the occ command
+	 *
+	 * @param $localStorage
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorVerifiesTheMountConfigurationForLocalStorageUsingTheOccCommand($localStorage) {
+		$this->listLocalStorageMount();
+		$commandOutput = \json_decode($this->featureContext->getStdOutOfOccCommand());
+		foreach ($commandOutput as $entry) {
+			if (\ltrim($entry->mount_point, '/') == $localStorage) {
+				$mountId = $entry->mount_id;
+			}
+		}
+		if (!isset($mountId)) {
+			throw new Exception("Id not found for local storage $localStorage to be verified");
+		}
+		$this->invokingTheCommand('files_external:verify ' . $mountId);
+	}
+
+	/**
+	 * @Then the following mount configuration information should be listed:
+	 *
+	 * @param $info
+	 *
+	 * @return void
+	 */
+	public function theFollowingInformationShouldBeListed(TableNode $info) {
+		$ResultArray = [];
+		$expectedInfo = $info->getColumnsHash();
+		$commandOutput = $this->featureContext->getStdOutOfOccCommand();
+		$commandOutputSplitted = \preg_split("/[-]/", $commandOutput);
+		$filteredArray = \array_filter(\array_map("trim", $commandOutputSplitted));
+		foreach ($filteredArray as $entry) {
+			$keyValue = \preg_split("/[:]/", $entry);
+			if (isset($keyValue[1])) {
+				$ResultArray[$keyValue[0]] = $keyValue[1];
+			} else {
+				$ResultArray[$keyValue[0]] = "";
+			}
+		}
+		foreach ($expectedInfo as $element) {
+			Assert::assertEquals($element, \array_map('trim', $ResultArray));
+		}
 	}
 
 	/**
 	 * @When the administrator list the repair steps using the occ command
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorListTheRepairStepsUsingTheOccCommand() {
 		$this->invokingTheCommand('maintenance:repair --list');
@@ -596,6 +1366,7 @@ class OccContext implements Context {
 	 * @param string $mode
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theBackgroundJobsModeShouldBe($mode) {
 		$this->invokingTheCommand(
@@ -611,6 +1382,7 @@ class OccContext implements Context {
 	 * @param string $value
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theUpdateChannelShouldBe($value) {
 		$this->invokingTheCommand(
@@ -626,6 +1398,7 @@ class OccContext implements Context {
 	 * @param string $logLevel
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theLogLevelShouldBe($logLevel) {
 		$this->invokingTheCommand(
@@ -636,7 +1409,6 @@ class OccContext implements Context {
 	}
 
 	/**
-	 * @Given the administrator has added config key :key with value :value in app :app
 	 * @When the administrator adds/updates config key :key with value :value in app :app using the occ command
 	 *
 	 * @param string $key
@@ -644,11 +1416,33 @@ class OccContext implements Context {
 	 * @param string $app
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorAddsConfigKeyWithValueInAppUsingTheOccCommand($key, $value, $app) {
-		$this->invokingTheCommand(
-			"config:app:set --value ${value} ${app} ${key}"
+		$this->addConfigKeyWithValueInAppUsingTheOccCommand(
+			$key,
+			$value,
+			$app
 		);
+	}
+
+	/**
+	 * @Given the administrator has added config key :key with value :value in app :app
+	 *
+	 * @param string $key
+	 * @param string $value
+	 * @param string $app
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorHasAddedConfigKeyWithValueInAppUsingTheOccCommand($key, $value, $app) {
+		$this->addConfigKeyWithValueInAppUsingTheOccCommand(
+			$key,
+			$value,
+			$app
+		);
+		$this->theCommandShouldHaveBeenSuccessful();
 	}
 
 	/**
@@ -658,16 +1452,13 @@ class OccContext implements Context {
 	 * @param string $app
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorDeletesConfigKeyOfAppUsingTheOccCommand($key, $app) {
-		$this->invokingTheCommand(
-			"config:app:delete ${app} ${key}"
-		);
+		$this->deleteConfigKeyOfAppUsingTheOccCommand($key, $app);
 	}
 
 	/**
-	 * @Given the administrator has added system config key :key with value :value
-	 * @Given the administrator has added system config key :key with value :value and type :type
 	 * @When the administrator adds/updates system config key :key with value :value using the occ command
 	 * @When the administrator adds/updates system config key :key with value :value and type :type using the occ command
 	 *
@@ -676,13 +1467,38 @@ class OccContext implements Context {
 	 * @param boolean $type
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorAddsSystemConfigKeyWithValueUsingTheOccCommand(
-		$key, $value, $type="string"
+		$key, $value, $type = "string"
 	) {
-		$this->invokingTheCommand(
-			"config:system:set --value ${value} --type ${type} ${key}"
+		$this->addSystemConfigKeyUsingTheOccCommand(
+			$key,
+			$value,
+			$type
 		);
+	}
+
+	/**
+	 * @Given the administrator has added/updated system config key :key with value :value
+	 * @Given the administrator has added/updated system config key :key with value :value and type :type
+	 *
+	 * @param string $key
+	 * @param string $value
+	 * @param boolean $type
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorHasAddedSystemConfigKeyWithValueUsingTheOccCommand(
+		$key, $value, $type = "string"
+	) {
+		$this->addSystemConfigKeyUsingTheOccCommand(
+			$key,
+			$value,
+			$type
+		);
+		$this->theCommandShouldHaveBeenSuccessful();
 	}
 
 	/**
@@ -691,11 +1507,10 @@ class OccContext implements Context {
 	 * @param string $key
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorDeletesSystemConfigKeyUsingTheOccCommand($key) {
-		$this->invokingTheCommand(
-			"config:system:delete ${key}"
-		);
+		$this->deleteSystemConfigKeyUsingTheOccCommand($key);
 	}
 
 	/**
@@ -704,11 +1519,10 @@ class OccContext implements Context {
 	 * @param string $user
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorEmptiesTheTrashbinOfUserUsingTheOccCommand($user) {
-		$this->invokingTheCommand(
-			"trashbin:cleanup $user"
-		);
+		$this->emptyTrashBinOfUserUsingOccCommand($user);
 	}
 
 	/**
@@ -717,31 +1531,30 @@ class OccContext implements Context {
 	 * @param string $user
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
-	public function userDeletesVersionsOfFileUsingOccComand($user) {
-		$this->invokingTheCommand(
-			"versions:cleanup $user"
-		);
+	public function theAdministratorDeletesAllTheVersionsForUser($user) {
+		$this->deleteAllVersionsForUserUsingOccCommand($user);
 	}
 
 	/**
 	 * @When the administrator empties the trashbin of all users using the occ command
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorEmptiesTheTrashbinOfAllUsersUsingTheOccCommand() {
-		$this->theAdministratorEmptiesTheTrashbinOfUserUsingTheOccCommand('');
+		$this->emptyTrashBinOfUserUsingOccCommand('');
 	}
 
 	/**
 	 * @When the administrator gets all the jobs in the background queue using the occ command
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorGetsAllTheJobsInTheBackgroundQueueUsingTheOccCommand() {
-		$this->invokingTheCommand(
-			"background:queue:status"
-		);
+		$this->getAllJobsInBackgroundQueueUsingOccCommand();
 	}
 
 	/**
@@ -750,16 +1563,10 @@ class OccContext implements Context {
 	 * @param string $job
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorDeletesLastBackgroundJobUsingTheOccCommand($job) {
-		$match = $this->getLastJobIdForJob($job);
-		if ($match === false) {
-			throw new \Exception("Couldn't find jobId for given job: $job");
-		}
-		$this->invokingTheCommand(
-			"background:queue:delete $match"
-		);
-		$this->lastDeletedJobId = $match;
+		$this->deleteLastBackgroundJobUsingTheOccCommand($job);
 	}
 
 	/**
@@ -768,6 +1575,7 @@ class OccContext implements Context {
 	 * @param string $job
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theLastDeletedJobShouldNotBeListedInTheJobsQueue($job) {
 		$jobId = $this->lastDeletedJobId;
@@ -786,9 +1594,10 @@ class OccContext implements Context {
 	 * @param string $value
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function systemConfigKeyShouldHaveValue($key, $value) {
-		$config = \trim($this->featureContext->getSystemConfigValue($key));
+		$config = \trim(SetupHelper::getSystemConfigValue($key));
 		Assert::assertSame($value, $config);
 	}
 
@@ -801,8 +1610,9 @@ class OccContext implements Context {
 	 */
 	public function theCommandOutputTableShouldContainTheFollowingText(TableNode $table) {
 		$commandOutput = $this->featureContext->getStdOutOfOccCommand();
+		$this->featureContext->verifyTableNodeColumns($table, ['table_column']);
 		foreach ($table as $row) {
-			$lines = $this->featureContext->findLines(
+			$lines = SetupHelper::findLines(
 				$commandOutput,
 				$row['table_column']
 			);
@@ -819,15 +1629,17 @@ class OccContext implements Context {
 	 * @param string $key
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function systemConfigKeyShouldNotExist($key) {
-		Assert::assertEmpty($this->featureContext->getSystemConfig($key)['stdOut']);
+		Assert::assertEmpty(SetupHelper::getSystemConfig($key)['stdOut']);
 	}
 
 	/**
 	 * @When the administrator lists the config keys
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorListsTheConfigKeys() {
 		$this->invokingTheCommand(
@@ -877,11 +1689,10 @@ class OccContext implements Context {
 	 * @param string $user
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorHasClearedTheVersionsForUser($user) {
-		$this->invokingTheCommand(
-			"versions:cleanup $user"
-		);
+		$this->deleteAllVersionsForUserUsingOccCommand($user);
 		Assert::assertSame(
 			"Delete versions of   $user",
 			\trim($this->featureContext->getStdOutOfOccCommand())
@@ -892,11 +1703,10 @@ class OccContext implements Context {
 	 * @Given the administrator has cleared the versions for all users
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theAdministratorHasClearedTheVersionsForAllUsers() {
-		$this->invokingTheCommand(
-			"versions:cleanup"
-		);
+		$this->deleteAllVersionsForAllUsersUsingTheOccCommand();
 		Assert::assertContains(
 			"Delete all versions",
 			\trim($this->featureContext->getStdOutOfOccCommand())
@@ -909,11 +1719,12 @@ class OccContext implements Context {
 	 * @param string $job
 	 *
 	 * @return string|boolean
+	 * @throws Exception
 	 */
 	public function getLastJobIdForJob($job) {
-		$this->theAdministratorGetsAllTheJobsInTheBackgroundQueueUsingTheOccCommand();
+		$this->getAllJobsInBackgroundQueueUsingOccCommand();
 		$commandOutput = $this->featureContext->getStdOutOfOccCommand();
-		$lines = $this->featureContext->findLines(
+		$lines = SetupHelper::findLines(
 			$commandOutput,
 			$job
 		);
@@ -975,12 +1786,131 @@ class OccContext implements Context {
 	}
 
 	/**
+	 * @Given the administrator has enabled the external storage
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function enableExternalStorageUsingOccAsAdmin() {
+		SetupHelper::runOcc(
+			[
+				'config:app:set',
+				'core',
+				'enable_external_storage',
+				'--value=yes'
+			],
+			$this->featureContext->getAdminUsername(),
+			$this->featureContext->getAdminPassword(),
+			$this->featureContext->getBaseUrl(),
+			$this->featureContext->getOcPath()
+		);
+		$response = SetupHelper::runOcc(
+			[
+				'config:app:get',
+				'core',
+				'enable_external_storage',
+			],
+			$this->featureContext->getAdminUsername(),
+			$this->featureContext->getAdminPassword(),
+			$this->featureContext->getBaseUrl(),
+			$this->featureContext->getOcPath()
+		);
+		$status = \trim($response['stdOut']);
+		Assert::assertEquals(
+			'yes',
+			$status
+		);
+	}
+
+	/**
+	 * @Given the administrator has added group :group to the exclude group from sharing list
+	 *
+	 * @param string $groups
+	 * multiple groups can be passed as comma separated string
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorHasAddedGroupToTheExcludeGroupFromSharingList($groups) {
+		$groups = \explode(',', \trim($groups));
+		$groups = \array_map('trim', $groups); //removing whitespaces around group names
+		$groups = '"' . \implode('","', $groups) . '"';
+		SetupHelper::runOcc(
+			[
+				'config:app:set',
+				'core',
+				'shareapi_exclude_groups_list',
+				"--value='[$groups]'"
+			],
+			$this->featureContext->getAdminUsername(),
+			$this->featureContext->getAdminPassword(),
+			$this->featureContext->getBaseUrl(),
+			$this->featureContext->getOcPath()
+		);
+		$response = SetupHelper::runOcc(
+			[
+				'config:app:get',
+				'core',
+				'shareapi_exclude_groups_list'
+			],
+			$this->featureContext->getAdminUsername(),
+			$this->featureContext->getAdminPassword(),
+			$this->featureContext->getBaseUrl(),
+			$this->featureContext->getOcPath()
+		);
+		$excludedGroupsFromResponse = (\trim($response['stdOut']));
+		$excludedGroupsFromResponse = \trim($excludedGroupsFromResponse, '[]');
+		Assert::assertEquals(
+			$groups,
+			$excludedGroupsFromResponse
+		);
+	}
+
+	/**
+	 * @Given the administrator has enabled exclude groups from sharing
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorHasEnabledExcludeGroupsFromSharingUsingTheWebui() {
+		SetupHelper::runOcc(
+			[
+				"config:app:set",
+				"core",
+				"shareapi_exclude_groups",
+				"--value=yes"
+			],
+			$this->featureContext->getAdminUsername(),
+			$this->featureContext->getAdminPassword(),
+			$this->featureContext->getBaseUrl(),
+			$this->featureContext->getOcPath()
+		);
+		$response = SetupHelper::runOcc(
+			[
+				"config:app:get",
+				"core",
+				"shareapi_exclude_groups"
+			],
+			$this->featureContext->getAdminUsername(),
+			$this->featureContext->getAdminPassword(),
+			$this->featureContext->getBaseUrl(),
+			$this->featureContext->getOcPath()
+		);
+		$status = \trim($response['stdOut']);
+		Assert::assertEquals(
+			"yes",
+			$status
+		);
+	}
+
+	/**
 	 * This will run after EVERY scenario.
 	 * It will set the properties for this object.
 	 *
 	 * @AfterScenario
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function removeImportedCertificates() {
 		$remainingCertificates = \array_diff($this->importedCertificates, $this->removedCertificates);
@@ -997,14 +1927,17 @@ class OccContext implements Context {
 	 * @AfterScenario
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function resetDAVTechPreview() {
-		if ($this->initialTechPreviewStatus === "") {
-			$this->featureContext->deleteSystemConfig('dav.enable.tech_preview');
-		} elseif ($this->initialTechPreviewStatus === 'true' && !$this->techPreviewEnabled) {
-			$this->enableDAVTechPreview();
-		} elseif ($this->initialTechPreviewStatus === 'false' && $this->techPreviewEnabled) {
-			$this->disableDAVTechPreview();
+		if ($this->doTechPreview) {
+			if ($this->initialTechPreviewStatus === "") {
+				SetupHelper::deleteSystemConfig('dav.enable.tech_preview');
+			} elseif ($this->initialTechPreviewStatus === 'true' && !$this->techPreviewEnabled) {
+				$this->enableDAVTechPreview();
+			} elseif ($this->initialTechPreviewStatus === 'false' && $this->techPreviewEnabled) {
+				$this->disableDAVTechPreview();
+			}
 		}
 	}
 
@@ -1017,6 +1950,7 @@ class OccContext implements Context {
 	 * @param BeforeScenarioScope $scope
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function before(BeforeScenarioScope $scope) {
 		// Get the environment
@@ -1029,10 +1963,16 @@ class OccContext implements Context {
 			$this->featureContext->getBaseUrl(),
 			$this->featureContext->getOcPath()
 		);
-		$techPreviewEnabled = \trim(
-			$this->featureContext->getSystemConfigValue('dav.enable.tech_preview')
-		);
-		$this->initialTechPreviewStatus = $techPreviewEnabled;
-		$this->techPreviewEnabled = $techPreviewEnabled === 'true';
+		$ocVersion = SetupHelper::getSystemConfigValue('version');
+		// dav.enable.tech_preview was used in some ownCloud versions before 10.4.0
+		// only set it on those versions of ownCloud
+		if (\version_compare($ocVersion, '10.4.0') === -1) {
+			$this->doTechPreview = true;
+			$techPreviewEnabled = \trim(
+				SetupHelper::getSystemConfigValue('dav.enable.tech_preview')
+			);
+			$this->initialTechPreviewStatus = $techPreviewEnabled;
+			$this->techPreviewEnabled = $techPreviewEnabled === 'true';
+		}
 	}
 }

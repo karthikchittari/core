@@ -25,8 +25,6 @@ use Behat\Gherkin\Node\TableNode;
 use PHPUnit\Framework\Assert;
 use TestHelpers\SetupHelper;
 
-require __DIR__ . '/../../../../lib/composer/autoload.php';
-
 /**
  * Context for steps that test apps_paths.
  */
@@ -57,7 +55,7 @@ class AppManagementContext implements Context {
 	 * @throws Exception
 	 */
 	public function setAppsPaths($appsPaths) {
-		return $this->featureContext->setSystemConfig(
+		return SetupHelper::setSystemConfig(
 			'apps_paths',
 			\json_encode($appsPaths),
 			'json'
@@ -74,9 +72,10 @@ class AppManagementContext implements Context {
 	 */
 	public function setAppDirectories(TableNode $table) {
 		$appsPathsConfigs = \json_decode(
-			$this->featureContext->getSystemConfig("apps_paths", "json")['stdOut'],
+			SetupHelper::getSystemConfig("apps_paths", "json")['stdOut'],
 			true
 		);
+		$this->featureContext->verifyTableNodeColumns($table, ['dir'], ['is_writable']);
 		foreach ($table as $appsPathToAdd) {
 			$dir = $appsPathToAdd['dir'];
 			$appsPathsConfigs[] = [
@@ -86,11 +85,14 @@ class AppManagementContext implements Context {
 			];
 			$this->featureContext->mkDirOnServer($appsPathToAdd['dir']);
 		}
-		$this->setAppsPaths($appsPathsConfigs);
+		$resp = $this->setAppsPaths($appsPathsConfigs);
+		Assert::assertEmpty(
+			$resp['stdErr'],
+			'Expected to set app path but failed due to error: ' . $resp['stdErr']
+		);
 	}
 
 	/**
-	 * @Given app :appId with version :version has been put in dir :dir
 	 * @When the administrator puts app :appId with version :version in dir :dir
 	 *
 	 * @param string $appId app id
@@ -100,8 +102,8 @@ class AppManagementContext implements Context {
 	 * @return void
 	 * @throws Exception
 	 */
-	public function appHasBeenPutInDir($appId, $version, $dir) {
-		$ocVersion = $this->featureContext->getSystemConfigValue('version');
+	public function putAppInDir($appId, $version, $dir) {
+		$ocVersion = SetupHelper::getSystemConfigValue('version');
 		$appInfo = \sprintf(
 			'<?xml version="1.0"?>
 			<info>
@@ -139,6 +141,26 @@ class AppManagementContext implements Context {
 	}
 
 	/**
+	 * @Given app :appId with version :version has been put in dir :dir
+	 *
+	 * @param string $appId app id
+	 * @param string $version app version
+	 * @param string $dir app directory
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function appHasBeenPutInDir($appId, $version, $dir) {
+		$this->putAppInDir($appId, $version, $dir);
+		$check = SetupHelper::runOcc(['app:list', '--output json']);
+		$appsDisabled = \json_decode($check['stdOut'], true)['disabled'];
+		Assert::assertTrue(
+			\array_key_exists($appId, $appsDisabled),
+			'Expected: ' . $appId . 'to be present in apps(disabled) list, but not found'
+		);
+	}
+
+	/**
 	 * @When the administrator gets the path for app :appId using the occ command
 	 * @Given the administrator has got the path for app :appId using the occ command
 	 *
@@ -147,17 +169,166 @@ class AppManagementContext implements Context {
 	 * @return void
 	 */
 	public function adminGetsPathForApp($appId) {
-		$occStatus = SetupHelper::runOcc(
+		$this->featureContext->runOcc(
 			['app:getpath', $appId, '--no-ansi']
 		);
-		$this->cmdOutput = $occStatus['stdOut'];
+		$this->cmdOutput = $this->featureContext->getStdOutOfOccCommand();
 		// check that the command seems to have executed OK, for both When and Given
 		// step forms. There is no point continuing the scenario if the command itself
 		// has reported an error.
+		$statusCode = $this->featureContext->getExitStatusCodeOfOccCommand();
 		Assert::assertEquals(
 			"0",
-			$occStatus['code'],
-			"app:getpath returned error code " . $occStatus['code']
+			$statusCode,
+			"app:getpath returned error code " . $statusCode
+		);
+	}
+
+	/**
+	 * @When the administrator lists the apps using the occ command
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function adminListsTheApps() {
+		$this->featureContext->runOcc(
+			['app:list', '--no-ansi']
+		);
+	}
+
+	/**
+	 * @When the administrator lists the enabled apps using the occ command
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function adminListsTheEnabledApps() {
+		$this->featureContext->runOcc(
+			['app:list', '--enabled', '--no-ansi']
+		);
+	}
+
+	/**
+	 * @When the administrator lists the disabled apps using the occ command
+	 *
+	 * @return void
+	 */
+	public function adminListsTheDisabledApps() {
+		$occStatus = $this->featureContext->runOcc(
+			['app:list', '--disabled', '--no-ansi']
+		);
+	}
+
+	/**
+	 * @When the administrator lists the enabled and disabled apps using the occ command
+	 *
+	 * @return void
+	 */
+	public function adminListsTheEnabledAndDisabledApps() {
+		$occStatus = $this->featureContext->runOcc(
+			['app:list', '--enabled', '--disabled', '--no-ansi']
+		);
+	}
+
+	/**
+	 * @Then app :appId with version :appVersion should have been listed in the enabled apps section
+	 *
+	 * @param string $appId
+	 * @param string $appVersion
+	 *
+	 * @return void
+	 */
+	public function appWithVersionShouldHaveBeenListedInTheEnabledAppsSection(
+		$appId, $appVersion
+	) {
+		$commandOutput = $this->featureContext->getStdOutOfOccCommand();
+		$expectedStartOfOutput = "Enabled:";
+		Assert::assertEquals(
+			$expectedStartOfOutput,
+			\substr($commandOutput, 0, 8),
+			"app:list command output did not start with '$expectedStartOfOutput'"
+		);
+		$startOfDisabledSection = \strpos($commandOutput, "Disabled:");
+		if ($startOfDisabledSection) {
+			$commandOutput = \substr($commandOutput, 0, $startOfDisabledSection);
+		}
+		$expectedString = "- $appId: $appVersion";
+		Assert::assertNotFalse(
+			\strpos($commandOutput, $expectedString),
+			"app:list output did not contain '$expectedString' in the enabled section"
+		);
+	}
+
+	/**
+	 * @Then app :appId with version :appVersion should have been listed in the disabled apps section
+	 *
+	 * @param string $appId
+	 * @param string $appVersion
+	 *
+	 * @return void
+	 */
+	public function appWithVersionShouldHaveBeenListedInTheDisabledAppsSection(
+		$appId, $appVersion
+	) {
+		$commandOutput = $this->featureContext->getStdOutOfOccCommand();
+		$startOfDisabledSection = \strpos($commandOutput, "Disabled:");
+		Assert::assertNotFalse(
+			$startOfDisabledSection,
+			"app:list output did not contain the disabled section"
+		);
+		$commandOutput = \substr($commandOutput, $startOfDisabledSection);
+		$expectedString = "- $appId: $appVersion";
+		Assert::assertNotFalse(
+			\strpos($commandOutput, $expectedString),
+			"app:list output did not contain '$expectedString' in the disabled section"
+		);
+	}
+
+	/**
+	 * @Then app :appId should have been listed in the disabled apps section
+	 *
+	 * @param string $appId
+	 *
+	 * @return void
+	 */
+	public function appShouldHaveBeenListedInTheDisabledAppsSection($appId) {
+		$commandOutput = $this->featureContext->getStdOutOfOccCommand();
+		$startOfDisabledSection = \strpos($commandOutput, "Disabled:");
+		Assert::assertNotFalse(
+			$startOfDisabledSection,
+			"app:list output did not contain the disabled section"
+		);
+		$commandOutput = \substr($commandOutput, $startOfDisabledSection);
+		$expectedString = "- $appId";
+		Assert::assertNotFalse(
+			\strpos($commandOutput, $expectedString),
+			"app:list output did not contain '$expectedString' in the disabled section"
+		);
+	}
+
+	/**
+	 * @Then the enabled apps section should not exist
+	 *
+	 * @return void
+	 */
+	public function theEnabledAppsSectionShouldNotExist() {
+		$commandOutput = $this->featureContext->getStdOutOfOccCommand();
+		Assert::assertFalse(
+			\strpos($commandOutput, "Enabled:"),
+			"app:list output contains the enabled section but it should not"
+		);
+	}
+
+	/**
+	 * @Then the disabled apps section should not exist
+	 *
+	 * @return void
+	 */
+	public function theDisabledAppsSectionShouldNotExist() {
+		$commandOutput = $this->featureContext->getStdOutOfOccCommand();
+		Assert::assertFalse(
+			\strpos($commandOutput, "Disabled:"),
+			"app:list output contains the disabled section but it should not"
 		);
 	}
 
@@ -207,7 +378,7 @@ class AppManagementContext implements Context {
 		// Get all the contexts you need in this context
 		$this->featureContext = $environment->getContext('FeatureContext');
 
-		$value = $this->featureContext->getSystemConfigValue(
+		$value = SetupHelper::getSystemConfigValue(
 			'apps_paths', 'json'
 		);
 
@@ -228,7 +399,7 @@ class AppManagementContext implements Context {
 	 */
 	public function undoChangingParameters() {
 		if ($this->oldAppsPaths === null) {
-			$this->featureContext->deleteSystemConfig('apps_paths');
+			SetupHelper::deleteSystemConfig('apps_paths');
 		} else {
 			$this->setAppsPaths($this->oldAppsPaths);
 		}

@@ -37,6 +37,7 @@ use PHPUnit\Framework\Assert;
 use SensioLabs\Behat\PageObjectExtension\PageObject\Exception\ElementNotFoundException;
 use TestHelpers\EmailHelper;
 use TestHelpers\HttpRequestHelper;
+use TestHelpers\SetupHelper;
 
 require_once 'bootstrap.php';
 
@@ -97,7 +98,6 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	 * @var WebUIFilesContext
 	 */
 	private $webUIFilesContext;
-	private $createdPublicLinks = [];
 
 	private $oldMinCharactersForAutocomplete = null;
 	private $oldFedSharingFallbackSetting = null;
@@ -138,19 +138,7 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	}
 
 	/**
-	 *
-	 * @param string $name
-	 * @param string $url
-	 *
-	 * @return void
-	 */
-	private function addToListOfCreatedPublicLinks($name, $url) {
-		$this->createdPublicLinks[] = ["name" => $name, "url" => $url];
-	}
-
-	/**
 	 * @When /^the user shares (?:file|folder) "([^"]*)" with (?:(remote|federated)\s)?user "([^"]*)" using the webUI$/
-	 * @Given /^the user has shared (?:file|folder) "([^"]*)" with (?:(remote|federated)\s)?user "([^"]*)" using the webUI$/
 	 *
 	 * @param string $folder
 	 * @param string $remote
@@ -170,8 +158,167 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	}
 
 	/**
+	 * @When /^the user shares (?:file|folder) "([^"]*)" with (?:(remote|federated)\s)?user "([^"]*)" using the webUI without closing the share dialog$/
+	 *
+	 * @param string $folder
+	 * @param string $remote (remote|federated|)
+	 * @param string $name
+	 * @param int $maxRetries
+	 * @param bool $quiet
+	 *
+	 * @return void
+	 * @throws \Exception
+	 *
+	 */
+	public function theUserSharesWithUserWithoutClosingDialog(
+		$folder, $remote, $name, $maxRetries = STANDARD_RETRY_COUNT, $quiet = false
+	) {
+		$this->theUserSharesUsingWebUIWithoutClosingDialog($folder, "user", $remote, $name, $maxRetries, $quiet);
+	}
+
+	/**
+	 * @When /^the user shares (?:file|folder) "([^"]*)" with group "([^"]*)" using the webUI without closing the share dialog$/
+	 *
+	 * @param string $folder
+	 * @param string $name
+	 * @param int $maxRetries
+	 * @param bool $quiet
+	 *
+	 * @return void
+	 *
+	 * @throws \Exception
+	 *
+	 */
+	public function theUserSharesWithGroupWithoutClosingDialog(
+		$folder, $name, $maxRetries = STANDARD_RETRY_COUNT, $quiet = false
+	) {
+		$this->theUserSharesUsingWebUIWithoutClosingDialog($folder, "group", "", $name, $maxRetries, $quiet);
+	}
+
+	/**
+	 * @Then /^the expiration date input field should (not |)be visible for the (user|group) "([^"]*)" in the share dialog$/
+	 *
+	 * @param string $shouldOrNot
+	 * @param string $type
+	 * @param string $receiver
+	 *
+	 * @return void
+	 */
+	public function expirationFieldVisibleForUser($shouldOrNot, $type, $receiver) {
+		$expected = ($shouldOrNot === "");
+		$this->sharingDialog->openShareActionsDropDown();
+		Assert::assertEquals($this->sharingDialog->isExpirationFieldVisible($receiver, $type), $expected);
+		$this->sharingDialog->closeShareActionsDropDown();
+	}
+
+	/**
+	 * @Then /^the expiration date input field should be empty for the (user|group) "([^"]*)" in the share dialog$/
+	 *
+	 * @param string $type
+	 * @param string $receiver
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function expirationFieldEmptyForUser($type, $receiver) {
+		Assert::assertEquals($this->sharingDialog->getExpirationDateFor($receiver, $type), "");
+	}
+
+	/**
+	 * @When /^the user changes expiration date for share of (user|group) "([^"]*)" to "([^"]*)" in the share dialog$/
+	 *
+	 * @param string $type
+	 * @param string $receiver
+	 * @param string $days
+	 *
+	 * @return void
+	 */
+	public function expirationDateChangedTo($type, $receiver, $days) {
+		$expectedDate = \date('d-m-Y', \strtotime($days));
+		$this->sharingDialog->openShareActionsDropDown();
+		$this->sharingDialog->setExpirationDateFor($this->getSession(), $receiver, $type, $expectedDate);
+		$this->sharingDialog->closeShareActionsDropDown();
+	}
+
+	/**
+	 * @Then /^the expiration date input field should be "([^"]*)" for the (user|group) "([^"]*)" in the share dialog$/
+	 *
+	 * @param string $days
+	 * @param string $type
+	 * @param string $receiver
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function expirationDateShouldBe($days, $type, $receiver) {
+		if (\strtotime($days) !== false) {
+			Assert::assertEquals(
+				\date('d-m-Y', \strtotime($days)),
+				$this->sharingDialog->getExpirationDateFor($receiver, $type)
+			);
+		} else {
+			throw new Exception("Invalid Format for the expiration date provided.");
+		}
+	}
+
+	/**
+	 * @When /^the user clears the expiration date input field for share of (user|group) "([^"]*)" in the share dialog$/
+	 *
+	 * @param string $userOrGroup
+	 * @param string $receiver
+	 *
+	 * @return void
+	 */
+	public function clearExpirationDate($userOrGroup, $receiver) {
+		$this->sharingDialog->openShareActionsDropDown();
+		$this->sharingDialog->clearExpirationDateFor($this->getSession(), $receiver, $userOrGroup);
+		$this->sharingDialog->closeShareActionsDropDown();
+	}
+
+	/**
+	 * @param string $folder
+	 * @param string $userOrGroup (user|group)
+	 * @param string $remote (remote|federated|)
+	 * @param string $name
+	 * @param int $maxRetries
+	 * @param bool $quiet
+	 *
+	 * @return void
+	 * @throws \Exception
+	 *
+	 */
+	public function theUserSharesUsingWebUIWithoutClosingDialog(
+		$folder, $userOrGroup, $remote, $name, $maxRetries = STANDARD_RETRY_COUNT, $quiet = false
+	) {
+		$this->filesPage->waitTillPageIsloaded($this->getSession());
+		try {
+			$this->filesPage->closeDetailsDialog();
+		} catch (Exception $e) {
+			//we don't care
+		}
+		$this->sharingDialog = $this->filesPage->openSharingDialog(
+			$folder, $this->getSession()
+		);
+		if ($userOrGroup === "user") {
+			$user = $this->featureContext->substituteInLineCodes($name);
+			if ($remote === "remote") {
+				$this->sharingDialog->shareWithRemoteUser(
+					$user, $this->getSession(), $maxRetries, $quiet
+				);
+			} else {
+				$this->sharingDialog->shareWithUser(
+					$user, $this->getSession(), $maxRetries, $quiet
+				);
+			}
+		} else {
+			$this->sharingDialog->shareWithGroup(
+				$name, $this->getSession(), $maxRetries, $quiet
+			);
+		}
+	}
+
+	/**
 	 * @When the user shares file/folder :folder with group :group using the webUI
-	 * @Given the user has shared file/folder :folder with group :group using the webUI
 	 *
 	 * @param string $folder
 	 * @param string $group
@@ -203,31 +350,9 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	public function theUserSharesFileFolderWithUserOrGroupUsingTheWebUI(
 		$folder, $userOrGroup, $remote, $name, $maxRetries = STANDARD_RETRY_COUNT, $quiet = false
 	) {
-		$this->filesPage->waitTillPageIsloaded($this->getSession());
-		try {
-			$this->filesPage->closeDetailsDialog();
-		} catch (Exception $e) {
-			//we don't care
-		}
-		$this->sharingDialog = $this->filesPage->openSharingDialog(
-			$folder, $this->getSession()
+		$this->theUserSharesUsingWebUIWithoutClosingDialog(
+			$folder, $userOrGroup, $remote, $name, $maxRetries, $quiet
 		);
-		if ($userOrGroup === "user") {
-			$user = $this->featureContext->substituteInLineCodes($name);
-			if ($remote === "remote") {
-				$this->sharingDialog->shareWithRemoteUser(
-					$user, $this->getSession(), $maxRetries, $quiet
-				);
-			} else {
-				$this->sharingDialog->shareWithUser(
-					$user, $this->getSession(), $maxRetries, $quiet
-				);
-			}
-		} else {
-			$this->sharingDialog->shareWithGroup(
-				$name, $this->getSession(), $maxRetries, $quiet
-			);
-		}
 		$this->theUserClosesTheShareDialog();
 	}
 
@@ -304,7 +429,6 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	}
 
 	/**
-	 * @Given the user has renamed the public link name from :oldName to :newName
 	 * @When the user renames the public link name from :oldName to :newName
 	 *
 	 * @param string $oldName
@@ -320,7 +444,7 @@ class WebUISharingContext extends RawMinkContext implements Context {
 		$this->publicShareTab->waitForAjaxCallsToStartAndFinish($session);
 
 		$linkUrl = $this->publicShareTab->getLinkUrl($newName);
-		$this->addToListOfCreatedPublicLinks($newName, $linkUrl);
+		$this->featureContext->addToListOfCreatedPublicLinks($newName, $linkUrl);
 	}
 
 	/**
@@ -358,7 +482,6 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	}
 
 	/**
-	 * @Given the user has changed the password of the public link named :name to :newPassword
 	 * @When the user changes the password of the public link named :name to :newPassword
 	 *
 	 * @param string $name
@@ -373,11 +496,10 @@ class WebUISharingContext extends RawMinkContext implements Context {
 		$this->publicShareTab->waitForAjaxCallsToStartAndFinish($session);
 
 		$linkUrl = $this->publicShareTab->getLinkUrl($name);
-		$this->addToListOfCreatedPublicLinks($name, $linkUrl);
+		$this->featureContext->addToListOfCreatedPublicLinks($name, $linkUrl);
 	}
 
 	/**
-	 * @Given the user has changed the permission of the public link named :name to :newPermission
 	 * @When the user changes the permission of the public link named :name to :newPermission
 	 *
 	 * @param string $name
@@ -392,7 +514,7 @@ class WebUISharingContext extends RawMinkContext implements Context {
 		$this->publicShareTab->waitForAjaxCallsToStartAndFinish($session);
 
 		$linkUrl = $this->publicShareTab->getLinkUrl($name);
-		$this->addToListOfCreatedPublicLinks($name, $linkUrl);
+		$this->featureContext->addToListOfCreatedPublicLinks($name, $linkUrl);
 	}
 
 	/**
@@ -403,6 +525,7 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	 * @param string $date
 	 *
 	 * @return void
+	 * @throws \Exception
 	 */
 	public function theUserChangeTheExpirationOfThePublicLinkNamedForTo($linkName, $name, $date) {
 		$session = $this->getSession();
@@ -437,8 +560,10 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	 * @param TableNode $emails
 	 *
 	 * @return void
+	 * @throws \Exception
 	 */
 	public function theUserAddsTheFollowingEmailAddressesUsingTheWebUI(TableNode $emails) {
+		$this->featureContext->verifyTableNodeColumns($emails, ['email']);
 		foreach ($emails as $row) {
 			$this->publicSharingPopup->setLinkEmail($row['email']);
 		}
@@ -450,8 +575,10 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	 * @param TableNode $emails
 	 *
 	 * @return void
+	 * @throws \Exception
 	 */
 	public function theUserRemovesTheFollowingEmailAddressesUsingTheWebui(TableNode $emails) {
+		$this->featureContext->verifyTableNodeColumns($emails, ['email']);
 		foreach ($emails as $row) {
 			$this->publicSharingPopup->unsetLinkEmail($row['email']);
 		}
@@ -469,14 +596,13 @@ class WebUISharingContext extends RawMinkContext implements Context {
 		$this->publicSharingPopup->waitForAjaxCallsToStartAndFinish($this->getSession());
 
 		$linkUrl = $this->publicShareTab->getLinkUrl($linkName);
-		$this->addToListOfCreatedPublicLinks($linkName, $linkUrl);
+		$this->featureContext->addToListOfCreatedPublicLinks($linkName, $linkUrl);
 
 		$this->featureContext->resetLastShareData();
 	}
 
 	/**
 	 * @When the user creates a new public link for file/folder :name using the webUI
-	 * @Given the user has created a new public link for file/folder :name using the webUI
 	 *
 	 * @param string $name
 	 *
@@ -507,7 +633,7 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	) {
 		$linkName = $this->createPublicShareLink($name, $settings);
 		$linkUrl = $this->publicShareTab->getLinkUrl($linkName);
-		$this->addToListOfCreatedPublicLinks($linkName, $linkUrl);
+		$this->featureContext->addToListOfCreatedPublicLinks($linkName, $linkUrl);
 	}
 
 	/**
@@ -617,6 +743,11 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	public function theUserSetsTheSharingPermissionsOfForOnTheWebUI(
 		$userOrGroup, $userName, $fileName, TableNode $permissionsTable
 	) {
+		$this->featureContext->verifyTableNodeRows(
+			$permissionsTable,
+			[],
+			['share', 'edit', 'create', 'change', 'delete', 'edit', 'secure-view', 'print']
+		);
 		// The capturing groups of the regex include the quotes at each
 		// end of the captured string, so trim them.
 		$userName = $this->featureContext->substituteInLineCodes(\trim($userName, '""'));
@@ -645,6 +776,8 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	public function theFollowingPermissionsAreSeenForInTheSharingDialogFor(
 		$fileName, $userOrGroup, $userName, TableNode $permissionsTable
 	) {
+		$this->featureContext->verifyTableNodeRows($permissionsTable, [], ['share', 'edit', 'create', 'change', 'delete']);
+
 		$userName = $this->featureContext->substituteInLineCodes(\trim($userName, '""'));
 		$this->theUserOpensTheShareDialogForFileFolder(\trim($fileName, '""'));
 		$this->sharingDialog->checkSharingPermissions(
@@ -676,7 +809,7 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	public function setMinCharactersForAutocomplete($minCharacters) {
 		if ($this->oldMinCharactersForAutocomplete === null) {
 			$oldMinCharactersForAutocomplete
-				= $this->featureContext->getSystemConfigValue(
+				= SetupHelper::getSystemConfigValue(
 					'user.search_min_length'
 				);
 			$this->oldMinCharactersForAutocomplete = \trim(
@@ -684,7 +817,7 @@ class WebUISharingContext extends RawMinkContext implements Context {
 			);
 		}
 		$minCharacters = (int) $minCharacters;
-		$this->featureContext->setSystemConfig(
+		SetupHelper::setSystemConfig(
 			'user.search_min_length', $minCharacters
 		);
 	}
@@ -698,14 +831,14 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	public function allowHttpFallbackForFedSharing() {
 		if ($this->oldFedSharingFallbackSetting === null) {
 			$oldFedSharingFallbackSetting
-				= $this->featureContext->getSystemConfigValue(
+				= SetupHelper::getSystemConfigValue(
 					'sharing.federation.allowHttpFallback'
 				);
 			$this->oldFedSharingFallbackSetting = \trim(
 				$oldFedSharingFallbackSetting
 			);
 		}
-		$this->featureContext->setSystemConfig(
+		SetupHelper::setSystemConfig(
 			'sharing.federation.allowHttpFallback', 'true', 'boolean'
 		);
 	}
@@ -730,7 +863,8 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	 * @throws \Exception
 	 */
 	public function thePublicAccessesTheLastCreatedPublicLinkUsingTheWebUI() {
-		$lastCreatedLink = \end($this->createdPublicLinks);
+		$createdPublicLinks = $this->featureContext->getCreatedPublicLinks();
+		$lastCreatedLink = \end($createdPublicLinks);
 		$path = \str_replace(
 			$this->featureContext->getBaseUrl(),
 			"",
@@ -768,13 +902,13 @@ class WebUISharingContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When /^the user (declines|accepts) share "([^"]*)" offered by user "([^"]*)" using the webUI$/
-	 * @Given /^the user has (declined|accepted) share "([^"]*)" offered by user "([^"]*)" using the webUI$/
 	 *
 	 * @param string $action
 	 * @param string $share
 	 * @param string $offeredBy
 	 *
 	 * @return void
+	 * @throws \Exception
 	 */
 	public function userReactsToShareOfferedByUsingWebUI(
 		$action, $share, $offeredBy
@@ -810,9 +944,10 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	 * @param string $password
 	 *
 	 * @return void
+	 * @throws \Exception
 	 */
 	public function thePublicAccessesPublicLinkWithPasswordUsingTheWebui($password) {
-		$createdPublicLinks = $this->createdPublicLinks;
+		$createdPublicLinks = $this->featureContext->getCreatedPublicLinks();
 		$baseUrl = $this->featureContext->getBaseUrl();
 		$this->publicLinkFilesPage->openPublicShareAuthenticateUrl($createdPublicLinks, $baseUrl);
 		$this->publicLinkFilesPage->enterPublicLinkPassword($password);
@@ -828,7 +963,7 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	 * @return void
 	 */
 	public function thePublicTriesToAccessPublicLinkWithWrongPasswordUsingTheWebui($wrongPassword) {
-		$createdPublicLinks = $this->createdPublicLinks;
+		$createdPublicLinks = $this->featureContext->getCreatedPublicLinks();
 		$baseUrl = $this->featureContext->getBaseUrl();
 		$this->publicLinkFilesPage->openPublicShareAuthenticateUrl($createdPublicLinks, $baseUrl);
 		$this->publicLinkFilesPage->enterPublicLinkPassword($wrongPassword);
@@ -926,8 +1061,8 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	public function thePublicShouldNotGetAccessToPublicShareFile() {
 		$warningMessage = $this->publicLinkFilesPage->getWarningMessage();
 		Assert::assertEquals('The password is wrong. Try again.', $warningMessage);
-
-		$lastCreatedLink = \end($this->createdPublicLinks);
+		$createdPublicLinks = $this->featureContext->getCreatedPublicLinks();
+		$lastCreatedLink = \end($createdPublicLinks);
 		$lastSharePath = $lastCreatedLink['url'] . '/authenticate';
 		$currentPath = $this->getSession()->getCurrentUrl();
 		Assert::assertEquals($lastSharePath, $currentPath);
@@ -1084,7 +1219,7 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	 * @param string $username
 	 *
 	 * @return void
-	 * @throws Exception
+	 * @throws \Exception
 	 */
 	public function userShouldBeListedInTheAutocompleteListOnTheWebui($username) {
 		$names = $this->sharingDialog->getAutocompleteItemsList();
@@ -1101,7 +1236,7 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	 * @param string $username
 	 *
 	 * @return void
-	 * @throws Exception
+	 * @throws \Exception
 	 */
 	public function userShouldNotBeListedInTheAutocompleteListOnTheWebui($username) {
 		$names = $this->sharingDialog->getAutocompleteItemsList();
@@ -1379,7 +1514,8 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	 * @return void
 	 */
 	public function thePublicShouldSeeAnErrorMessageWhileAccessingLastCreatedPublicLinkUsingTheWebui($errorMsg) {
-		$lastCreatedLink = \end($this->createdPublicLinks);
+		$createdPublicLinks = $this->featureContext->getCreatedPublicLinks();
+		$lastCreatedLink = \end($createdPublicLinks);
 		$path = \str_replace(
 			$this->featureContext->getBaseUrl(),
 			"",
@@ -1402,6 +1538,7 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	 *                                 exactly the way they are written in the UI
 	 *
 	 * @return string
+	 * @throws \Exception
 	 */
 	public function createPublicShareLink($name, $settings = null) {
 		$this->filesPage->waitTillPageIsloaded($this->getSession());
@@ -1418,6 +1555,11 @@ class WebUISharingContext extends RawMinkContext implements Context {
 		);
 		$this->publicShareTab = $this->sharingDialog->openPublicShareTab($session);
 		if ($settings !== null) {
+			$this->featureContext->verifyTableNodeRows(
+				$settings,
+				[],
+				['name', 'permission', 'password', 'expiration', 'email', 'personalMessage', 'emailToSelf']
+			);
 			$settingsArray = $settings->getRowsHash();
 			if (!isset($settingsArray['name'])) {
 				$settingsArray['name'] = null;
@@ -1526,13 +1668,15 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	 * @param string $address
 	 *
 	 * @return void
+	 * @throws \Exception
 	 */
 	public function theEmailAddressShouldHaveReceivedAnEmailContainingSharedPublicLink($address) {
 		$content = EmailHelper::getBodyOfLastEmail(
 			EmailHelper::getLocalMailhogUrl(),
 			$address
 		);
-		$lastCreatedPublicLink = \end($this->createdPublicLinks);
+		$createdPublicLinks = $this->featureContext->getCreatedPublicLinks();
+		$lastCreatedPublicLink = \end($createdPublicLinks);
 		Assert::assertContains($lastCreatedPublicLink["url"], $content);
 	}
 
@@ -1568,6 +1712,14 @@ class WebUISharingContext extends RawMinkContext implements Context {
 		$this->featureContext = $environment->getContext('FeatureContext');
 		$this->webUIGeneralContext = $environment->getContext('WebUIGeneralContext');
 		$this->webUIFilesContext = $environment->getContext('WebUIFilesContext');
+
+		// Initialize SetupHelper class
+		SetupHelper::init(
+			$this->featureContext->getAdminUsername(),
+			$this->featureContext->getAdminPassword(),
+			$this->featureContext->getBaseUrl(),
+			$this->featureContext->getOcPath()
+		);
 	}
 
 	/**
@@ -1581,23 +1733,69 @@ class WebUISharingContext extends RawMinkContext implements Context {
 	public function tearDownScenario() {
 		//TODO make a function that can be used for different settings
 		if ($this->oldMinCharactersForAutocomplete === "") {
-			$this->featureContext->deleteSystemConfig('user.search_min_length');
+			SetupHelper::deleteSystemConfig('user.search_min_length');
 		} elseif ($this->oldMinCharactersForAutocomplete !== null) {
-			$this->featureContext->setSystemConfig(
+			SetupHelper::setSystemConfig(
 				'user.search_min_length',
 				$this->oldMinCharactersForAutocomplete
 			);
 		}
 
 		if ($this->oldFedSharingFallbackSetting === "") {
-			$this->featureContext->deleteSystemConfig(
+			SetupHelper::deleteSystemConfig(
 				'sharing.federation.allowHttpFallback'
 			);
 		} elseif ($this->oldFedSharingFallbackSetting !== null) {
-			$this->featureContext->setSystemConfig(
+			SetupHelper::setSystemConfig(
 				'sharing.federation.allowHttpFallback',
 				$this->oldFedSharingFallbackSetting,
 				'boolean'
+			);
+		}
+	}
+
+	/**
+	 * @Then the following resources should have share indicators on the webUI
+	 *
+	 * @param TableNode $resourceTable
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theFollowingResourcesShouldHaveShareIndicatorOnTheWebUI(TableNode $resourceTable) {
+		$this->featureContext->verifyTableNodeColumnsCount($resourceTable, 1);
+		$elementRows = $resourceTable->getRows();
+		$elements = $this->featureContext->simplifyArray($elementRows);
+		foreach ($elements as $filename) {
+			$isMarked = $this->filesPage->isSharedIndicatorPresent(
+				$filename, $this->getSession()
+			);
+			Assert::assertTrue(
+				$isMarked,
+				"Expected: " . $filename . " to be marked as shared but it's not"
+			);
+		}
+	}
+
+	/**
+	 * @Then the following resources should not have share indicators on the webUI
+	 *
+	 * @param TableNode $resourceTable
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theFollowingResourcesShouldNotHaveShareIndicatorOnTheWebUI(TableNode $resourceTable) {
+		$this->featureContext->verifyTableNodeColumnsCount($resourceTable, 1);
+		$elementRows = $resourceTable->getRows();
+		$elements = $this->featureContext->simplifyArray($elementRows);
+		foreach ($elements as $filename) {
+			$isMarked = $this->filesPage->isSharedIndicatorPresent(
+				$filename, $this->getSession()
+			);
+			Assert::assertFalse(
+				$isMarked,
+				"Expected: " . $filename . " not to be marked as shared but it is"
 			);
 		}
 	}

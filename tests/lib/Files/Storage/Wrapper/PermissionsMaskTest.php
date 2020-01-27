@@ -17,13 +17,13 @@ class PermissionsMaskTest extends \Test\Files\Storage\Storage {
 	 */
 	private $sourceStorage;
 
-	public function setUp() {
+	public function setUp(): void {
 		parent::setUp();
 		$this->sourceStorage = new \OC\Files\Storage\Temporary([]);
 		$this->instance = $this->getMaskedStorage(Constants::PERMISSION_ALL);
 	}
 
-	public function tearDown() {
+	public function tearDown(): void {
 		$this->sourceStorage->cleanUp();
 		parent::tearDown();
 	}
@@ -73,6 +73,14 @@ class PermissionsMaskTest extends \Test\Files\Storage\Storage {
 		$this->assertTrue($storage->file_exists('foo'));
 		$this->assertFalse($storage->unlink('foo'));
 		$this->assertTrue($storage->file_exists('foo'));
+	}
+
+	public function testUnlinkPartFiles() {
+		$file = 'foo.txt.part';
+		$storage = $this->getMaskedStorage(Constants::PERMISSION_ALL - Constants::PERMISSION_DELETE);
+		$storage->touch($file);
+		$this->assertTrue($storage->unlink($file));
+		$this->assertFalse($storage->file_exists($file));
 	}
 
 	public function testPutContentsNewFileNoUpdate() {

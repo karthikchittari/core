@@ -46,7 +46,33 @@ class FavoritesContext implements Context {
 	private $webDavPropertiesContext;
 
 	/**
+	 * @param $user
+	 * @param $path
+	 *
+	 * @return void
+	 */
+	public function userFavoritesElement($user, $path) {
+		$response = $this->changeFavStateOfAnElement(
+			$user,
+			$path,
+			1
+		);
+		$this->featureContext->setResponse($response);
+	}
+
+	/**
 	 * @When user :user favorites element :path using the WebDAV API
+	 *
+	 * @param string $user
+	 * @param string $path
+	 *
+	 * @return void
+	 */
+	public function userFavoritesElementUsingWebDavApi($user, $path) {
+		$this->userFavoritesElement($user, $path);
+	}
+
+	/**
 	 * @Given user :user has favorited element :path
 	 *
 	 * @param string $user
@@ -54,32 +80,46 @@ class FavoritesContext implements Context {
 	 *
 	 * @return void
 	 */
-	public function userFavoritesElement($user, $path) {
-		$response = $this->changeFavStateOfAnElement($user, $path, 1);
-		$this->featureContext->setResponse($response);
+	public function userHasFavoritedElementUsingWebDavApi($user, $path) {
+		$this->userFavoritesElement($user, $path);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
 	}
-	
+
 	/**
 	 * @When the user favorites element :path using the WebDAV API
-	 * @Given the user has favorited element :path
 	 *
 	 * @param string $path
 	 *
 	 * @return void
 	 */
 	public function theUserFavoritesElement($path) {
-		$response = $this->changeFavStateOfAnElement(
-			$this->featureContext->getCurrentUser(), $path, 1
+		$this->userFavoritesElement(
+			$this->featureContext->getCurrentUser(),
+			$path
 		);
-		$this->featureContext->setResponse($response);
 	}
-	
+
 	/**
-	 * @When user :user unfavorites element :path using the WebDAV API
-	 * @Given user :user has unfavorited element :path
+	 * @Given the user has favorited element :path
 	 *
-	 * @param string $user
 	 * @param string $path
+	 *
+	 * @return void
+	 */
+	public function theUserHasFavoritedElement($path) {
+		$this->userFavoritesElement(
+			$this->featureContext->getCurrentUser(),
+			$path
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBe(
+			207,
+			"Expected response status code to be 207 (Multi-status), but not found! "
+		);
+	}
+
+	/**
+	 * @param $user
+	 * @param $path
 	 *
 	 * @return void
 	 */
@@ -89,7 +129,32 @@ class FavoritesContext implements Context {
 		);
 		$this->featureContext->setResponse($response);
 	}
-	
+
+	/**
+	 * @When user :user unfavorites element :path using the WebDAV API
+	 *
+	 * @param string $user
+	 * @param string $path
+	 *
+	 * @return void
+	 */
+	public function userUnfavoritesElementUsingWebDavApi($user, $path) {
+		$this->userUnfavoritesElement($user, $path);
+	}
+
+	/**
+	 * @Given user :user has unfavorited element :path
+	 *
+	 * @param string $user
+	 * @param string $path
+	 *
+	 * @return void
+	 */
+	public function userHasUnfavoritedElementUsingWebDavApi($user, $path) {
+		$this->userUnfavoritesElement($user, $path);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
 	/**
 	 * @Then /^user "([^"]*)" in folder "([^"]*)" should (not|)\s?have favorited the following elements$/
 	 *
@@ -108,7 +173,7 @@ class FavoritesContext implements Context {
 			$shouldOrNot, $expectedElements
 		);
 	}
-	
+
 	/**
 	 * @Then /^the user in folder "([^"]*)" should (not|)\s?have favorited the following elements$/
 	 *
@@ -126,7 +191,7 @@ class FavoritesContext implements Context {
 			$folder, $shouldOrNot, $expectedElements
 		);
 	}
-	
+
 	/**
 	 * @When /^user "([^"]*)" lists the favorites of folder "([^"]*)" and limits the result to ([\d*]) elements using the WebDAV API$/
 	 *
@@ -144,21 +209,21 @@ class FavoritesContext implements Context {
 			"	<oc:filter-files xmlns:a='DAV:' xmlns:oc='http://owncloud.org/ns' >\n" .
 			"		<a:prop><oc:favorite/></a:prop>\n" .
 			"		<oc:filter-rules><oc:favorite>1</oc:favorite></oc:filter-rules>\n";
-		
+
 		if ($limit !== null) {
 			$body .= "		<oc:search>\n" .
 				"			<oc:limit>$limit</oc:limit>\n" .
 				"		</oc:search>\n";
 		}
-		
+
 		$body .= "	</oc:filter-files>";
 		$response = WebDavHelper::makeDavRequest(
-			$baseUrl, $user, $password, "REPORT", "/", null, $body, null,
+			$baseUrl, $user, $password, "REPORT", "/", null, $body,
 			$this->featureContext->getDavPathVersion()
 		);
 		$this->featureContext->setResponse($response);
 	}
-	
+
 	/**
 	 * @When /^the user lists the favorites of folder "([^"]*)" and limits the result to ([\d*]) elements using the WebDAV API$/
 	 *
@@ -174,20 +239,40 @@ class FavoritesContext implements Context {
 	}
 
 	/**
+	 * @param $path
+	 *
+	 * @return void
+	 */
+	public function theUserUnfavoritesElement($path) {
+		$this->userUnfavoritesElement(
+			$this->featureContext->getCurrentUser(),
+			$path
+		);
+	}
+
+	/**
 	 * @When the user unfavorites element :path using the WebDAV API
+	 *
+	 * @param string $path
+	 *
+	 * @return void
+	 */
+	public function theUserUnfavoritesElementUsingWebDavApi($path) {
+		$this->theUserUnfavoritesElement($path);
+	}
+
+	/**
 	 * @Given the user has unfavorited element :path
 	 *
 	 * @param string $path
 	 *
 	 * @return void
 	 */
-	public function theUserUnfavoritesElement($path) {
-		$response = $this->changeFavStateOfAnElement(
-			$this->featureContext->getCurrentUser(), $path, 0
-		);
-		$this->featureContext->setResponse($response);
+	public function theUserHasUnfavoritedElementUsingWebDavApi($path) {
+		$this->theUserUnfavoritesElement($path);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
 	}
-	
+
 	/**
 	 * @Then /^as user "([^"]*)" the (?:file|folder|entry) "([^"]*)" should be favorited$/
 	 *
@@ -229,7 +314,7 @@ class FavoritesContext implements Context {
 			$this->featureContext->getCurrentUser(), $path, $expectedValue
 		);
 	}
-	
+
 	/**
 	 * @Then /^as the user (?:file|folder|entry) "([^"]*)" should not be favorited$/
 	 *

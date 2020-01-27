@@ -6,14 +6,18 @@ Feature: add a user using the using the occ command
   So that I can give people controlled individual access to resources on the ownCloud server and
   So that I can write scripts to add users
 
-  Scenario: admin creates an ordinary user using the occ command
+  Scenario Outline: admin creates an ordinary user using the occ command
     When the administrator creates this user using the occ command:
+      | username   |
+      | <username> |
+    Then the command should have been successful
+    And the command output should contain the text 'The user "<username>" was created successfully'
+    And user "<username>" should exist
+    And user "<username>" should be able to access a skeleton file
+    Examples:
       | username  |
       | justauser |
-    Then the command should have been successful
-    And the command output should contain the text 'The user "justauser" was created successfully'
-    And user "justauser" should exist
-    And user "justauser" should be able to access a skeleton file
+      | a@-+_.b   |
 
   Scenario: admin creates an ordinary user specifying attributes using the occ command
     When the administrator creates this user using the occ command:
@@ -58,11 +62,11 @@ Feature: add a user using the using the occ command
     And user "brand-new-user" should exist
     And user "brand-new-user" should be able to access a skeleton file
     Examples:
-      | password                     | comment                     |
-      | !@#$%^&*()-_+=[]{}:;,.<>?~/\ | special characters          |
-      | España§àôœ€  | special European and other characters       |
-      | नेपाली                       | Unicode                     |
-      | password with spaces         | password with spaces        |
+      | password                     | comment                               |
+      | !@#$%^&*()-_+=[]{}:;,.<>?~/\ | special characters                    |
+      | España§àôœ€                  | special European and other characters |
+      | नेपाली                       | Unicode                               |
+      | password with spaces         | password with spaces                  |
 
   Scenario: admin creates a user and specifies an invalid password, containing just space
     Given user "brand-new-user" has been deleted

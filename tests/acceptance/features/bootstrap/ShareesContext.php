@@ -46,6 +46,7 @@ class ShareesContext implements Context {
 	 * @var OCSContext
 	 */
 	private $ocsContext;
+
 	/**
 	 * @When /^the user gets the sharees using the sharing API with parameters$/
 	 *
@@ -69,6 +70,7 @@ class ShareesContext implements Context {
 	 */
 	public function userGetsTheShareesWithParameters($user, $body) {
 		$url = '/apps/files_sharing/api/v1/sharees';
+		$this->featureContext->verifyTableNodeColumnsCount($body, 2);
 		if ($body instanceof TableNode) {
 			$parameters = [];
 			foreach ($body->getRowsHash() as $key => $value) {
@@ -93,6 +95,7 @@ class ShareesContext implements Context {
 	 * @return void
 	 */
 	public function theShareesReturnedShouldBe($shareeType, $shareesList) {
+		$this->featureContext->verifyTableNodeColumnsCount($shareesList, 3);
 		$sharees = $shareesList->getRows();
 		$respondedArray = $this->getArrayOfShareesResponded(
 			$this->featureContext->getResponse(), $shareeType

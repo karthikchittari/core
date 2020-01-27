@@ -50,11 +50,11 @@ class EditPublicLinkPopup extends OwncloudPage {
 	private $permissionLabelXpath = [
 		'read' => ".//label[contains(@for, 'sharingDialogAllowPublicRead')]",
 		'read-write' => ".//label[contains(@for, 'sharingDialogAllowPublicReadWrite')]",
-		'upload-write-without-modify' =>  ".//label[contains(@for, 'sharingDialogAllowpublicUploadWrite')]",
+		'upload-write-without-modify' => ".//label[contains(@for, 'sharingDialogAllowpublicUploadWrite')]",
 		'upload' => ".//label[contains(@for, 'sharingDialogAllowPublicUpload')]"
 	];
 	private $popupCloseButton = "//a[@class='oc-dialog-close']";
-	private $expirationDateRequiredErrorMessageXpath = './/*[@id="shareDialogExpirationView"]//span[@class="error-message"]';
+	private $expirationDateRequiredErrorMessageXpath = './/*[@id="shareDialogLinkExpirationView"]//span[@class="error-message"]';
 
 	/**
 	 * sets the NodeElement for the current popup
@@ -74,8 +74,8 @@ class EditPublicLinkPopup extends OwncloudPage {
 	/**
 	 * finds and returns the NodeElement of the name input field
 	 *
-	 * @throws ElementNotFoundException
 	 * @return NodeElement
+	 * @throws ElementNotFoundException
 	 */
 	private function findNameInput() {
 		$nameInput = $this->popupElement->find("xpath", $this->nameInputXpath);

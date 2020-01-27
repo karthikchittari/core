@@ -112,19 +112,19 @@ class TagsContext implements Context {
 		$userAttributes = TagsHelper::validateTypeOfTag($type);
 		$userVisible = ($userAttributes[0]) ? 'true' : 'false';
 		$userAssignable = ($userAttributes[1]) ? 'true' : 'false';
-		
+
 		$tagDisplayName = $tagData->xpath(".//oc:display-name");
 		Assert::assertArrayHasKey(
 			0, $tagDisplayName, "cannot find 'oc:display-name' property"
 		);
 		$tagDisplayName = $tagDisplayName[0]->__toString();
-		
+
 		$tagUserVisible = $tagData->xpath(".//oc:user-visible");
 		Assert::assertArrayHasKey(
 			0, $tagUserVisible, "cannot find 'oc:user-visible' property"
 		);
 		$tagUserVisible = $tagUserVisible[0]->__toString();
-		
+
 		$tagUserAssignable = $tagData->xpath(".//oc:user-assignable");
 		Assert::assertArrayHasKey(
 			0, $tagUserAssignable, "cannot find 'oc:user-assignable' property"
@@ -140,8 +140,22 @@ class TagsContext implements Context {
 	}
 
 	/**
+	 * @param string$type
+	 * @param string $name
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function createTagWithNameAsAdmin($type, $name) {
+		$this->createTagWithName(
+			$this->featureContext->getAdminUsername(),
+			$type,
+			$name
+		);
+	}
+
+	/**
 	 * @When the administrator creates a :type tag with name :name using the WebDAV API
-	 * @Given the administrator has created a :type tag with name :name
 	 *
 	 * @param string $type
 	 * @param string $name
@@ -150,14 +164,46 @@ class TagsContext implements Context {
 	 * @throws \Exception
 	 */
 	public function theAdministratorCreatesATagWithName($type, $name) {
-		$this->createsATagWithName(
-			$this->featureContext->getAdminUsername(), $type, $name
+		$this->createTagWithNameAsAdmin(
+			$type,
+			$name
+		);
+	}
+
+	/**
+	 * @Given the administrator has created a :type tag with name :name
+	 *
+	 * @param string $type
+	 * @param string $name
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theAdministratorHasCreatedATagWithName($type, $name) {
+		$this->createTagWithNameAsAdmin(
+			$type,
+			$name
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
+	 * @param string $type
+	 * @param string $name
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function createTagWithNameAsCurrentUser($type, $name) {
+		$this->createTagWithName(
+			$this->featureContext->getCurrentUser(),
+			$type,
+			$name
 		);
 	}
 
 	/**
 	 * @When the user creates a :type tag with name :name using the WebDAV API
-	 * @Given the user has created a :type tag with name :name
 	 *
 	 * @param string $type
 	 * @param string $name
@@ -166,13 +212,65 @@ class TagsContext implements Context {
 	 * @throws \Exception
 	 */
 	public function theUserCreatesATagWithName($type, $name) {
-		$this->createsATagWithName(
-			$this->featureContext->getCurrentUser(), $type, $name
+		$this->createTagWithNameAsCurrentUser(
+			$type,
+			$name
 		);
 	}
 
 	/**
+	 * @Given the user has created a :type tag with name :name
+	 *
+	 * @param string $type
+	 * @param string $name
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theUserHasCreatedATagWithName($type, $name) {
+		$this->createTagWithNameAsCurrentUser(
+			$type,
+			$name
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
+	 * @param string $user
+	 * @param string $type
+	 * @param string $name
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function createTagWithName($user, $type, $name) {
+		$this->createTag(
+			$user,
+			TagsHelper::validateTypeOfTag($type)[0],
+			TagsHelper::validateTypeOfTag($type)[1],
+			TagsHelper::validateTypeOfTag($type)[2],
+			$name
+		);
+	}
+	/**
 	 * @When user :user creates a :type tag with name :name using the WebDAV API
+	 *
+	 * @param string $user
+	 * @param string $type
+	 * @param string $name
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function userCreatesATagWithName($user, $type, $name) {
+		$this->createTagWithName(
+			$user,
+			$type,
+			$name
+		);
+	}
+
+	/**
 	 * @Given user :user has created a :type tag with name :name
 	 *
 	 * @param string $user
@@ -182,19 +280,34 @@ class TagsContext implements Context {
 	 * @return void
 	 * @throws \Exception
 	 */
-	public function createsATagWithName($user, $type, $name) {
-		$this->createTag(
+	public function userHasCreatedATagWithName($user, $type, $name) {
+		$this->createTagWithName(
 			$user,
-			TagsHelper::validateTypeOfTag($type)[0],
-			TagsHelper::validateTypeOfTag($type)[1],
-			TagsHelper::validateTypeOfTag($type)[2],
+			$type,
 			$name
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
+	 * @param string $type
+	 * @param string $name
+	 * @param string $groups
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function createTagWithNameAndGroupsAsCurrentUser($type, $name, $groups) {
+		$this->createTagWithNameAndGroups(
+			$this->featureContext->getCurrentUser(),
+			$type,
+			$name,
+			$groups
 		);
 	}
 
 	/**
 	 * @When the user creates a :type tag with name :name and groups :groups using the WebDAV API
-	 * @Given the user has created a :type tag with name :name and groups :groups
 	 *
 	 * @param string $type
 	 * @param string $name
@@ -204,14 +317,48 @@ class TagsContext implements Context {
 	 * @throws \Exception
 	 */
 	public function theUserCreatesATagWithNameAndGroups($type, $name, $groups) {
-		$this->createsATagWithNameAndGroups(
-			$this->featureContext->getCurrentUser(), $type, $name, $groups
+		$this->createTagWithNameAndGroupsAsCurrentUser(
+			$type,
+			$name,
+			$groups
+		);
+	}
+
+	/**
+	 * @Given the user has created a :type tag with name :name and groups :groups
+	 *
+	 * @param string $type
+	 * @param string $name
+	 * @param string $groups
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theUserHasCreatedATagWithNameAndGroups($type, $name, $groups) {
+		$this->createTagWithNameAndGroupsAsCurrentUser(
+			$type,
+			$name,
+			$groups
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
+	 * @param string $type
+	 * @param string $name
+	 * @param string $groups
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function createTagWithNameAndGroupsAsAdmin($type, $name, $groups) {
+		$this->createTagWithNameAndGroups(
+			$this->featureContext->getAdminUsername(), $type, $name, $groups
 		);
 	}
 
 	/**
 	 * @When the administrator creates a :type tag with name :name and groups :groups using the WebDAV API
-	 * @Given the administrator has created a :type tag with name :name and groups :groups
 	 *
 	 * @param string $type
 	 * @param string $name
@@ -221,13 +368,73 @@ class TagsContext implements Context {
 	 * @throws \Exception
 	 */
 	public function theAdministratorCreatesATagWithNameAndGroups($type, $name, $groups) {
-		$this->createsATagWithNameAndGroups(
-			$this->featureContext->getAdminUsername(), $type, $name, $groups
+		$this->createTagWithNameAndGroupsAsAdmin(
+			$type,
+			$name,
+			$groups
+		);
+	}
+
+	/**
+	 * @Given the administrator has created a :type tag with name :name and groups :groups
+	 *
+	 * @param string $type
+	 * @param string $name
+	 * @param string $groups
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theAdministratorHasCreatedATagWithNameAndGroups($type, $name, $groups) {
+		$this->createTagWithNameAndGroupsAsAdmin(
+			$type,
+			$name,
+			$groups
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
+	 * @param string $user
+	 * @param string $type
+	 * @param string $name
+	 * @param string $groups
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function createTagWithNameAndGroups($user, $type, $name, $groups) {
+		$this->createTag(
+			$user,
+			TagsHelper::validateTypeOfTag($type)[0],
+			TagsHelper::validateTypeOfTag($type)[1],
+			TagsHelper::validateTypeOfTag($type)[2],
+			$name,
+			$groups
 		);
 	}
 
 	/**
 	 * @When user :user creates a :type tag with name :name and groups :groups using the WebDAV API
+	 *
+	 * @param string $user
+	 * @param string $type
+	 * @param string $name
+	 * @param string $groups
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function userCreatesATagWithNameAndGroups($user, $type, $name, $groups) {
+		$this->createTagWithNameAndGroups(
+			$user,
+			$type,
+			$name,
+			$groups
+		);
+	}
+
+	/**
 	 * @Given user :user has created a :type tag with name :name and groups :groups
 	 *
 	 * @param string $user
@@ -238,15 +445,14 @@ class TagsContext implements Context {
 	 * @return void
 	 * @throws \Exception
 	 */
-	public function createsATagWithNameAndGroups($user, $type, $name, $groups) {
-		$this->createTag(
+	public function userHasCreatedATagWithNameAndGroups($user, $type, $name, $groups) {
+		$this->createTagWithNameAndGroups(
 			$user,
-			TagsHelper::validateTypeOfTag($type)[0],
-			TagsHelper::validateTypeOfTag($type)[1],
-			TagsHelper::validateTypeOfTag($type)[2],
+			$type,
 			$name,
 			$groups
 		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
 	}
 
 	/**
@@ -275,7 +481,7 @@ class TagsContext implements Context {
 		$user, $tagDisplayName, $withGroups = false
 	) {
 		$tagList = $this->requestTagsForUser($user, $withGroups);
-		
+
 		$tagData = $tagList->xpath(
 			"//d:prop//oc:display-name[text() = '$tagDisplayName']/.."
 		);
@@ -325,14 +531,15 @@ class TagsContext implements Context {
 	 */
 	public function theFollowingTagsShouldExistForUser($user, TableNode $table) {
 		$user = $this->featureContext->getActualUsername($user);
-		foreach ($table->getRowsHash() as $rowDisplayName => $rowType) {
-			$tagData = $this->requestTagByDisplayName($user, $rowDisplayName);
+		$this->featureContext->verifyTableNodeColumns($table, ['name', 'type']);
+		foreach ($table->getHash() as $row) {
+			$tagData = $this->requestTagByDisplayName($user, $row['name']);
 			if ($tagData === null) {
 				Assert::fail(
-					"tag $rowDisplayName is not in propfind answer"
+					"tag ${row['name']} is not in propfind answer"
 				);
 			} else {
-				$this->assertTypeOfTag($tagData, $rowType);
+				$this->assertTypeOfTag($tagData, $row['type']);
 			}
 		}
 	}
@@ -468,7 +675,7 @@ class TagsContext implements Context {
 	 * @throws \Exception
 	 */
 	public function tagsShouldExistForUser($count, $user) {
-		if ((int)$count !== \count($this->requestTagsForUser($user))) {
+		if ((int) $count !== \count($this->requestTagsForUser($user))) {
 			throw new \Exception(
 				"Expected $count tags, got "
 				. \count($this->requestTagsForUser($user))
@@ -512,8 +719,20 @@ class TagsContext implements Context {
 	}
 
 	/**
+	 * @param string $oldName
+	 * @param string $newName
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function editTagWithNameAndSetNameUsingWebDAVAPIAsAdmin($oldName, $newName) {
+		$this->editTagName(
+			$this->featureContext->getAdminUsername(), $oldName, $newName
+		);
+	}
+
+	/**
 	 * @When the administrator edits the tag with name :oldName and sets its name to :newName using the WebDAV API
-	 * @Given the administrator has edited the tag with name :oldName and set its name to :newName
 	 *
 	 * @param string $oldName
 	 * @param string $newName
@@ -522,14 +741,44 @@ class TagsContext implements Context {
 	 * @throws \Exception
 	 */
 	public function theAdministratorEditsTheTagWithNameAndSetItsNameToUsingTheWebDAVAPI($oldName, $newName) {
+		$this->editTagWithNameAndSetNameUsingWebDAVAPIAsAdmin(
+			$oldName,
+			$newName
+		);
+	}
+
+	/**
+	 * @Given the administrator has edited the tag with name :oldName and set its name to :newName
+	 *
+	 * @param string $oldName
+	 * @param string $newName
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theAdministratorHasEditedTheTagWithNameAndSetItsNameToUsingTheWebDAVAPI($oldName, $newName) {
+		$this->editTagWithNameAndSetNameUsingWebDAVAPIAsAdmin(
+			$oldName,
+			$newName
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
+	 * @param string $oldName
+	 * @param string $newName
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function editTagWithNameAndSetNameUsingWebDAVAPIAsCurrentUser($oldName, $newName) {
 		$this->editTagName(
-			$this->featureContext->getAdminUsername(), $oldName, $newName
+			$this->featureContext->getCurrentUser(), $oldName, $newName
 		);
 	}
 
 	/**
 	 * @When the user edits the tag with name :oldName and sets its name to :newName using the WebDAV API
-	 * @Given the user has edited the tag with name :oldName and set its name to :newName
 	 *
 	 * @param string $oldName
 	 * @param string $newName
@@ -538,15 +787,30 @@ class TagsContext implements Context {
 	 * @throws \Exception
 	 */
 	public function theUserEditsTheTagWithNameAndSetItsNameToUsingTheWebDAVAPI($oldName, $newName) {
-		$this->editTagName(
-			$this->featureContext->getCurrentUser(), $oldName, $newName
+		$this->editTagWithNameAndSetNameUsingWebDAVAPIAsCurrentUser(
+			$oldName,
+			$newName
 		);
 	}
 
 	/**
-	 * @When user :user edits the tag with name :oldName and sets its name to :newName using the WebDAV API
-	 * @Given user :user has edited the tag with name :oldName and set its name to :newName
+	 * @Given the user has edited the tag with name :oldName and set its name to :newName
 	 *
+	 * @param string $oldName
+	 * @param string $newName
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theUserHasEditedTheTagWithNameAndSetItsNameToUsingTheWebDAVAPI($oldName, $newName) {
+		$this->editTagWithNameAndSetNameUsingWebDAVAPIAsCurrentUser(
+			$oldName,
+			$newName
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
 	 * @param string $user
 	 * @param string $oldName
 	 * @param string $newName
@@ -559,8 +823,57 @@ class TagsContext implements Context {
 	}
 
 	/**
+	 * @When user :user edits the tag with name :oldName and sets its name to :newName using the WebDAV API
+	 *
+	 * @param string $user
+	 * @param string $oldName
+	 * @param string $newName
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function userEditsTheTagWithNameAndSetItsNameToUsingTheWebDAVAPI($user, $oldName, $newName) {
+		$this->editTagName(
+			$user,
+			$oldName,
+			$newName
+		);
+	}
+
+	/**
+	 * @Given user :user has edited the tag with name :oldName and set its name to :newName
+	 *
+	 * @param string $user
+	 * @param string $oldName
+	 * @param string $newName
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function userHasEditedTheTagWithNameAndSetItsNameToUsingTheWebDAVAPI($user, $oldName, $newName) {
+		$this->editTagName(
+			$user,
+			$oldName,
+			$newName
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
+	 * @param string $oldName
+	 * @param string $groups
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function editTagWithNameAndSetsGroupsUsingWebDAVAPIAsAdmin($oldName, $groups) {
+		$this->editTagGroups(
+			$this->featureContext->getAdminUsername(), $oldName, $groups
+		);
+	}
+
+	/**
 	 * @When the administrator edits the tag with name :oldName and sets its groups to :groups using the WebDAV API
-	 * @Given the administrator has edited the tag with name :oldName and set its groups to :groups
 	 *
 	 * @param string $oldName
 	 * @param string $groups
@@ -569,14 +882,44 @@ class TagsContext implements Context {
 	 * @throws \Exception
 	 */
 	public function theAdministratorEditsTheTagWithNameAndSetsItsGroupsToUsingTheWebDAVAPI($oldName, $groups) {
+		$this->editTagWithNameAndSetsGroupsUsingWebDAVAPIAsAdmin(
+			$oldName,
+			$groups
+		);
+	}
+
+	/**
+	 * @Given the administrator has edited the tag with name :oldName and set its groups to :groups
+	 *
+	 * @param string $oldName
+	 * @param string $groups
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theAdministratorHasEditedTheTagWithNameAndSetsItsGroupsToUsingTheWebDAVAPI($oldName, $groups) {
+		$this->editTagWithNameAndSetsGroupsUsingWebDAVAPIAsAdmin(
+			$oldName,
+			$groups
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
+	 * @param string $oldName
+	 * @param string $groups
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function editTagWithNameAndSetGroupsUsingWebDAVAPIAsCurrentUser($oldName, $groups) {
 		$this->editTagGroups(
-			$this->featureContext->getAdminUsername(), $oldName, $groups
+			$this->featureContext->getCurrentUser(), $oldName, $groups
 		);
 	}
 
 	/**
 	 * @When the user edits the tag with name :oldName and sets its groups to :groups using the WebDAV API
-	 * @Given the user has edited the tag with name :oldName and set its groups to :groups
 	 *
 	 * @param string $oldName
 	 * @param string $groups
@@ -585,15 +928,30 @@ class TagsContext implements Context {
 	 * @throws \Exception
 	 */
 	public function theUserEditsTheTagWithNameAndSetsItsGroupsToUsingTheWebDAVAPI($oldName, $groups) {
-		$this->editTagGroups(
-			$this->featureContext->getCurrentUser(), $oldName, $groups
+		$this->editTagWithNameAndSetGroupsUsingWebDAVAPIAsCurrentUser(
+			$oldName,
+			$groups
 		);
 	}
 
 	/**
-	 * @When user :user edits the tag with name :oldName and sets its groups to :groups using the WebDAV API
-	 * @Given user :user has edited the tag with name :oldName and set its groups to :groups
+	 * @Given the user has edited the tag with name :oldName and set its groups to :groups
 	 *
+	 * @param string $oldName
+	 * @param string $groups
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theUserHasEditedTheTagWithNameAndSetsItsGroupsToUsingTheWebDAVAPI($oldName, $groups) {
+		$this->editTagWithNameAndSetGroupsUsingWebDAVAPIAsCurrentUser(
+			$oldName,
+			$groups
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
 	 * @param string $user
 	 * @param string $oldName
 	 * @param string $groups
@@ -607,15 +965,49 @@ class TagsContext implements Context {
 	}
 
 	/**
-	 * @When user :user deletes the tag with name :name using the WebDAV API
-	 * @Given user :user has deleted the tag with name :name
+	 * @When user :user edits the tag with name :oldName and sets its groups to :groups using the WebDAV API
 	 *
 	 * @param string $user
-	 * @param string $name
+	 * @param string $oldName
+	 * @param string $groups
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function userEditsTheTagWithNameAndSetsItsGroupsToUsingTheWebDavApi($user, $oldName, $groups) {
+		$this->editTagGroups(
+			$user,
+			$oldName,
+			$groups
+		);
+	}
+
+	/**
+	 * @Given user :user has edited the tag with name :oldName and set its groups to :groups
+	 *
+	 * @param string $user
+	 * @param string $oldName
+	 * @param string $groups
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function userHasEditedTheTagWithNameAndSetsItsGroupsToUsingTheWebDavApi($user, $oldName, $groups) {
+		$this->editTagGroups(
+			$user,
+			$oldName,
+			$groups
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
+	 * @param string $user
+	 * @param string $name tag name
 	 *
 	 * @return void
 	 */
-	public function userDeletesTag($user, $name) {
+	public function deleteTag($user, $name) {
 		$tagID = $this->findTagIdByName($name);
 		$response = TagsHelper::deleteTag(
 			$this->featureContext->getBaseUrl(),
@@ -631,31 +1023,62 @@ class TagsContext implements Context {
 	}
 
 	/**
-	 * @When the user deletes the tag with name :name using the WebDAV API
-	 * @Given the user has deleted the tag with name :name
+	 * @When user :user deletes the tag with name :name using the WebDAV API
 	 *
+	 * @param string $user
 	 * @param string $name
 	 *
 	 * @return void
 	 */
-	public function theUserDeletesTagWithName($name) {
+	public function userDeletesTag($user, $name) {
+		$this->deleteTag(
+			$user,
+			$name
+		);
+	}
+
+	/**
+	 * @param string $name
+	 *
+	 * @return void
+	 */
+	public function deleteTagAsCurrentUser($name) {
 		$this->userDeletesTag(
 			$this->featureContext->getCurrentUser(), $name
 		);
 	}
 
 	/**
+	 * @When the user deletes the tag with name :name using the WebDAV API
+	 *
+	 * @param string $name
+	 *
+	 * @return void
+	 */
+	public function theUserDeletesTagWithName($name) {
+		$this->deleteTagAsCurrentUser($name);
+	}
+
+	/**
+	 * @param string $name
+	 *
+	 * @return void
+	 */
+	public function deleteTagAsAdmin($name) {
+		$this->userDeletesTag(
+			$this->featureContext->getAdminUsername(), $name
+		);
+	}
+
+	/**
 	 * @When the administrator deletes the tag with name :name using the WebDAV API
-	 * @Given the administrator has deleted the tag with name :name
 	 *
 	 * @param string $name
 	 *
 	 * @return void
 	 */
 	public function theAdministratorDeletesTagWithName($name) {
-		$this->userDeletesTag(
-			$this->featureContext->getAdminUsername(), $name
-		);
+		$this->deleteTagAsAdmin($name);
 	}
 
 	/**
@@ -665,6 +1088,7 @@ class TagsContext implements Context {
 	 * @param string|null $fileOwner
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	private function tag(
 		$taggingUser, $tagName, $fileName, $fileOwner = null
@@ -704,13 +1128,13 @@ class TagsContext implements Context {
 			$fileID = $this->featureContext->getFileIdForPath($user, $fileName);
 		}
 		$properties = [
-						'oc:id',
-						'oc:display-name',
-						'oc:user-visible',
-						'oc:user-assignable',
-						'oc:user-editable',
-						'oc:can-assign'
-					  ];
+			'oc:id',
+			'oc:display-name',
+			'oc:user-visible',
+			'oc:user-assignable',
+			'oc:user-editable',
+			'oc:can-assign'
+		];
 		$appPath = '/systemtags-relations/files/';
 		$fullPath = $appPath . $fileID;
 		$response = WebDavHelper::propfind(
@@ -726,8 +1150,25 @@ class TagsContext implements Context {
 	}
 
 	/**
+	 * @param string $adminOrUser
+	 * @param string $tagName
+	 * @param string $fileName
+	 *
+	 * @return void
+	 */
+	public function addTagToFileFolderAsAdminOrUser(
+		$adminOrUser, $tagName, $fileName
+	) {
+		if ($adminOrUser === 'administrator') {
+			$taggingUser = $this->featureContext->getAdminUsername();
+		} else {
+			$taggingUser = $this->featureContext->getCurrentUser();
+		}
+		$this->addTagToFileFolder($taggingUser, $tagName, $fileName);
+	}
+
+	/**
 	 * @When /^the (administrator|user) adds tag "([^"]*)" to (?:file|folder) "([^"]*)" using the WebDAV API$/
-	 * @Given /^the (administrator|user) has added tag "([^"]*)" to (?:file|folder) "([^"]*)"$/
 	 *
 	 * @param string $adminOrUser
 	 * @param string $tagName
@@ -738,16 +1179,69 @@ class TagsContext implements Context {
 	public function theUserOrAdministratorAddsTagToFileFolder(
 		$adminOrUser, $tagName, $fileName
 	) {
-		if ($adminOrUser === 'administrator') {
-			$taggingUser = $this->featureContext->getAdminUsername();
-		} else {
-			$taggingUser = $this->featureContext->getCurrentUser();
-		}
-		$this->addsTagToFileFolder($taggingUser, $tagName, $fileName);
+		$this->addTagToFileFolderAsAdminOrUser(
+			$adminOrUser,
+			$tagName,
+			$fileName
+		);
+	}
+
+	/**
+	 * @Given /^the (administrator|user) has added tag "([^"]*)" to (?:file|folder) "([^"]*)"$/
+	 * @Given /^the (administrator|user) has toggled tag "([^"]*)" to (?:file|folder) "([^"]*)"$/
+	 *
+	 * @param string $adminOrUser
+	 * @param string $tagName
+	 * @param string $fileName
+	 *
+	 * @return void
+	 */
+	public function theUserOrAdministratorHasAddedTagToFileFolder(
+		$adminOrUser, $tagName, $fileName
+	) {
+		$this->addTagToFileFolderAsAdminOrUser(
+			$adminOrUser,
+			$tagName,
+			$fileName
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
+	 * @param string $taggingUser
+	 * @param string $tagName
+	 * @param string $fileName
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function addTagToFileFolder(
+		$taggingUser, $tagName, $fileName
+	) {
+		$this->tag($taggingUser, $tagName, $fileName);
 	}
 
 	/**
 	 * @When /^user "([^"]*)" adds tag "([^"]*)" to (?:file|folder) "([^"]*)" using the WebDAV API$/
+	 *
+	 * @param string $taggingUser
+	 * @param string $tagName
+	 * @param string $fileName
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function userAddsTagToFileFolder(
+		$taggingUser, $tagName, $fileName
+	) {
+		$this->addTagToFileFolder(
+			$taggingUser,
+			$tagName,
+			$fileName
+		);
+	}
+
+	/**
 	 * @Given /^user "([^"]*)" has added tag "([^"]*)" to (?:file|folder) "([^"]*)"$/
 	 *
 	 * @param string $taggingUser
@@ -755,15 +1249,62 @@ class TagsContext implements Context {
 	 * @param string $fileName
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
-	public function addsTagToFileFolder(
+	public function userHasAddedTagToFileFolder(
 		$taggingUser, $tagName, $fileName
 	) {
-		$this->tag($taggingUser, $tagName, $fileName);
+		$this->addTagToFileFolder(
+			$taggingUser,
+			$tagName,
+			$fileName
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
+	 * @param string $taggingUser
+	 * @param string $tagName
+	 * @param string $fileName
+	 * @param string $sharingUser
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function addTagToResourceSharedByUser(
+		$taggingUser, $tagName, $fileName, $sharingUser
+	) {
+		$this->tag(
+			$taggingUser,
+			$tagName,
+			$fileName,
+			$sharingUser
+		);
 	}
 
 	/**
 	 * @When /^user "([^"]*)" adds tag "([^"]*)" to (?:file|folder) "([^"]*)" (?:shared|owned) by "([^"]*)" using the WebDAV API$/
+	 *
+	 * @param string $taggingUser
+	 * @param string $tagName
+	 * @param string $fileName
+	 * @param string $sharingUser
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function userAddsTagToSharedBy(
+		$taggingUser, $tagName, $fileName, $sharingUser
+	) {
+		$this->addTagToResourceSharedByUser(
+			$taggingUser,
+			$tagName,
+			$fileName,
+			$sharingUser
+		);
+	}
+
+	/**
 	 * @Given /^user "([^"]*)" has added tag "([^"]*)" to (?:file|folder) "([^"]*)" (?:shared|owned) by "([^"]*)"$/
 	 *
 	 * @param string $taggingUser
@@ -772,11 +1313,18 @@ class TagsContext implements Context {
 	 * @param string $sharingUser
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
-	public function addsTagToSharedBy(
+	public function userHasAddedTagToSharedBy(
 		$taggingUser, $tagName, $fileName, $sharingUser
 	) {
-		$this->tag($taggingUser, $tagName, $fileName, $sharingUser);
+		$this->addTagToResourceSharedByUser(
+			$taggingUser,
+			$tagName,
+			$fileName,
+			$sharingUser
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
 	}
 
 	/**
@@ -825,7 +1373,11 @@ class TagsContext implements Context {
 	 *
 	 * @param string $fileName
 	 * @param string $sharingUser
-	 * @param TableNode $table
+	 * @param TableNode $table  - Table containg tags. Should have two columns ('name' and 'type')
+	 *                          e.g.
+	 *                          | name | type   |
+	 *                          | tag1 | normal |
+	 *                          | tag2 | static |
 	 *
 	 * @return bool
 	 * @throws \Exception
@@ -836,22 +1388,23 @@ class TagsContext implements Context {
 		$xml = $this->requestTagsForFile($sharingUser, $fileName);
 		$tagList = $xml->xpath("//d:prop");
 		$found = false;
-		foreach ($table->getRowsHash() as $rowDisplayName => $rowType) {
+		$this->featureContext->verifyTableNodeColumns($table, ['name', 'type']);
+		foreach ($table->getHash() as $row) {
 			$found = false;
 			foreach ($tagList as $tagData) {
 				$displayName = $tagData->xpath(".//oc:display-name");
 				Assert::assertArrayHasKey(
 					0, $displayName, "cannot find 'oc:display-name' property"
 				);
-				if ($displayName[0]->__toString() === $rowDisplayName) {
+				if ($displayName[0]->__toString() === $row['name']) {
 					$found = true;
-					$this->assertTypeOfTag($tagData, $rowType);
+					$this->assertTypeOfTag($tagData, $row['type']);
 					break;
 				}
 			}
 			if ($found === false) {
 				Assert::fail(
-					"tag $rowDisplayName is not in propfind answer"
+					"tag ${row['name']} is not in propfind answer"
 				);
 			}
 		}
@@ -925,7 +1478,7 @@ class TagsContext implements Context {
 	 * @return void
 	 * @throws \Exception
 	 */
-	public function fileHasNoTagsForUser($fileName, $adminOrUser=null, $user=null) {
+	public function fileHasNoTagsForUser($fileName, $adminOrUser = null, $user = null) {
 		if ($user === null) {
 			if ($adminOrUser === 'administrator') {
 				$user = $this->featureContext->getAdminUsername();
@@ -957,15 +1510,24 @@ class TagsContext implements Context {
 			null,
 			null,
 			"uploads",
-			null,
 			$this->featureContext->getDavPathVersion('systemtags')
 		);
 		$this->featureContext->setResponse($response);
 	}
 
 	/**
+	 * @param string $user
+	 * @param string $tagName
+	 * @param string $fileName
+	 *
+	 * @return void
+	 */
+	public function removeTagFromFile($user, $tagName, $fileName) {
+		$this->untag($user, $tagName, $fileName, $user);
+	}
+
+	/**
 	 * @When user :user removes tag :tagName from file :fileName using the WebDAV API
-	 * @Given user :user has removed tag :tagName from file :fileName
 	 *
 	 * @param string $user
 	 * @param string $tagName
@@ -973,13 +1535,35 @@ class TagsContext implements Context {
 	 *
 	 * @return void
 	 */
-	public function removesTagFromFile($user, $tagName, $fileName) {
-		$this->untag($user, $tagName, $fileName, $user);
+	public function userRemovesTagFromFile($user, $tagName, $fileName) {
+		$this->removeTagFromFile(
+			$user,
+			$tagName,
+			$fileName
+		);
+	}
+
+	/**
+	 * @param string $user
+	 * @param string $tagName
+	 * @param string $fileName
+	 * @param string $shareUser
+	 *
+	 * @return void
+	 */
+	public function removeTagFromFileSharedByUser(
+		$user, $tagName, $fileName, $shareUser
+	) {
+		$this->untag(
+			$user,
+			$tagName,
+			$fileName,
+			$shareUser
+		);
 	}
 
 	/**
 	 * @When user :user removes tag :tagName from file :fileName shared by :shareUser using the WebDAV API
-	 * @Given user :user has removed tag :tagName from file :fileName shared by :shareUser
 	 *
 	 * @param string $user
 	 * @param string $tagName
@@ -988,15 +1572,33 @@ class TagsContext implements Context {
 	 *
 	 * @return void
 	 */
-	public function removesTagFromFileSharedBy(
+	public function userRemovesTagFromFileSharedBy(
 		$user, $tagName, $fileName, $shareUser
 	) {
-		$this->untag($user, $tagName, $fileName, $shareUser);
+		$this->removeTagFromFileSharedByUser(
+			$user,
+			$tagName,
+			$fileName,
+			$shareUser
+		);
+	}
+
+	/**
+	 * @param string $tagName
+	 * @param string $fileName
+	 * @param string $shareUser
+	 *
+	 * @return void
+	 */
+	public function removeTagFromFileSharedByUserAsAdminUsingWebDavApi(
+		$tagName, $fileName, $shareUser
+	) {
+		$admin = $this->featureContext->getAdminUsername();
+		$this->removeTagFromFileSharedByUser($admin, $tagName, $fileName, $shareUser);
 	}
 
 	/**
 	 * @When the administrator removes tag :tagName from file :fileName shared by :shareUser using the WebDAV API
-	 * Given the administrator has removed tag :tagName from file :fileName shared by :shareUser
 	 *
 	 * @param string $tagName
 	 * @param string $fileName
@@ -1007,17 +1609,20 @@ class TagsContext implements Context {
 	public function theAdministratorRemovesTheTagFromFileSharedByUsingTheWebdavApi(
 		$tagName, $fileName, $shareUser
 	) {
-		$admin = $this->featureContext->getAdminUsername();
-		$this->removesTagFromFileSharedBy($admin, $tagName, $fileName, $shareUser);
+		$this->removeTagFromFileSharedByUserAsAdminUsingWebDavApi(
+			$tagName,
+			$fileName,
+			$shareUser
+		);
 	}
-	
+
 	/**
 	 * @AfterScenario
 	 *
 	 * @return void
 	 */
 	public function cleanupTags() {
-		$this->featureContext->deleteTokenAuthEnforcedAfterScenario();
+		$this->featureContext->authContext->deleteTokenAuthEnforcedAfterScenario();
 		foreach ($this->createdTags as $tagID => $tag) {
 			TagsHelper::deleteTag(
 				$this->featureContext->getBaseUrl(),
