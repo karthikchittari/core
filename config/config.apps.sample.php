@@ -11,7 +11,7 @@
  *
  * All keys are only valid if the corresponding app is installed and enabled.
  * You MUST copy the keys needed to the active config.php file.
- * 
+ *
  * This file is used to generate the configuration documentation.
  * Please consider following requirements of the current parser:
  *  * all comments need to start with `/**` and end with ` *\/` - each on their
@@ -30,10 +30,10 @@ $CONFIG = array(
 
 /**
  * App: Activity
- * 
+ *
  * Possible values: `activity_expire_days` days.
  */
- 
+
 /**
  * Define the retention for activities of the activity app.
  */
@@ -42,12 +42,12 @@ $CONFIG = array(
 
 /**
  * App: LDAP
- * 
+ *
  * Possible values: `ldapIgnoreNamingRules` `doSet` or `false`.
- * 
+ *
  * Possible values: `user_ldap.enable_medial_search` `true` or `false`.
  */
- 
+
 /**
  * Define parameters for the LDAP app.
  */
@@ -57,7 +57,7 @@ $CONFIG = array(
 
 /**
  * App: Market
- * 
+ *
  * Possible values: `appstoreurl` URL.
  */
 
@@ -69,20 +69,20 @@ $CONFIG = array(
 
 /**
  * App: Firstrunwizard
- * 
+ *
  * Possible values: `customclient_desktop` URL.
- * 
+ *
  * Possible values: `customclient_android` URL.
- * 
+ *
  * Possible values: `customclient_ios` URL.
  */
 
 /**
  * Define the download links for ownCloud clients.
- * Configuring the download links for ownCloud clients, 
+ * Configuring the download links for ownCloud clients,
  * as seen in the first-run wizard and on Personal pages
  */
- 
+
 'customclient_desktop' =>
 	'https://owncloud.org/install/#install-clients',
 'customclient_android' =>
@@ -92,7 +92,7 @@ $CONFIG = array(
 
 /**
  * App: Richdocuments
- * 
+ *
  * Possible values: `collabora_group` string.
  */
 
@@ -103,36 +103,40 @@ $CONFIG = array(
 'collabora_group' => '',
 
 /**
- * OIDC Configuration
+ * OpenID Connect(OIDC) Configuration
  */
 
 /**
- * Configure OIDC OpenID Configuration
+ * Configure OpenID Connect
  *
  * The `provider-url`, `client-id` and `client-secret` variables are to be
- * taken from the OpenID Provider's setup. The `loginButtonName` variable can
- * be freely chosen, depending on the installation.
+ * taken from the OpenID Connect Provider's setup. The `loginButtonName`
+ * variable can be freely chosen, depending on the installation.
  *
  * NOTE: The provider-params configuration array only needs to be used if the
- * OpenID Provider does NOT support service discovery.
+ * OpenID Connect Provider does NOT support service discovery.
  *
  * autoRedirectOnLoginPage::
- * If true, the login page will automatically be redirected to the IdP, as when
- * the button is pressed. The default is `false`.
+ * If true, the login page will automatically be redirected to the OpenID
+ * Connect Provider, as when the button is pressed. The default is `false`.
  *
  * mode::
  * This is the attribute in the owncloud accounts table to search for users.
  * The default value is `email`. An alternative value: `userid`.
  *
  * search-attribute::
- * This is the claim from the OpenID user information which shall be used for
- * searching in the accounts table. The default value is `email`.
+ * This is the claim from the OpenID Connect user information which shall be
+ * used for searching in the accounts table. The default value is `email`. For
+ * more information about the claim, see
+ * https://openid.net/specs/openid-connect-core-1_0.html#Claims.
  *
  * use-token-introspection-endpoint::
- * There are tokens which are not JWT and information like the expiry cannot be
- * read from the token itself. In these cases, the IdP needs to call on the
- * token introspection endpoint to get this information. The default value is
- * `false`.
+ * There are tokens which are not JSON WebToken(JWT) and information like the
+ * expiry cannot be read from the token itself. In these cases, the OpenID
+ * Connect Provider needs to call on the token introspection endpoint to get
+ * this information. The default value is `false`. See
+ * https://tools.ietf.org/html/rfc7662 for more information on token
+ * introspection.
  */
 'openid-connect' => array(
     'autoRedirectOnLoginPage' => false,
@@ -140,7 +144,7 @@ $CONFIG = array(
     'client-secret' => '',
     'loginButtonName' => 'OpenId Connect',
     'mode' => 'userid',
-    // Only required if the OpenID Provider does not support service discovery
+    // Only required if the OpenID Connect Provider does not support service discovery
     'provider-params' => array(
         'authorization_endpoint' => '...',
         'end_session_endpoint' => '...',
