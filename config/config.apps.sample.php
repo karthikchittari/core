@@ -104,6 +104,8 @@ $CONFIG = array(
 
 /**
  * OpenID Connect(OIDC) Configuration
+ *
+ * App: openidconnect
  */
 
 /**
