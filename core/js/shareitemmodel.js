@@ -165,12 +165,29 @@
 			options = options || {};
 			properties = _.extend({}, properties);
 
+			// Set default expiration date
+			if (
+				this.configModel.isDefaultExpireDateUserEnabled() && (
+					shareType === OC.Share.SHARE_TYPE_USER ||
+					shareType === OC.Share.SHARE_TYPE_GUEST ||
+					shareType === OC.Share.SHARE_TYPE_REMOTE )
+				) {
+				properties.expireDate = this.configModel.getDefaultExpireDateUser('YYYY-MM-DD')
+			}
+
+			else if (this.configModel.isDefaultExpireDateGroupEnabled() && shareType === OC.Share.SHARE_TYPE_GROUP) {
+				properties.expireDate = this.configModel.getDefaultExpireDateGroup('YYYY-MM-DD')
+			}
+
 			// Get default permissions
 			var permissions = properties.permissions || OC.PERMISSION_ALL;
 			properties.permissions = permissions & this.getDefaultPermissions();
 
 			// Extend attributes for new share
-			properties.attributes = this._handleAddShareAttributes(properties, options);
+			// note: required only for compatibility with attributes v1
+			if (this._registeredAttributes.length) {
+				properties.attributes = this._handleAddShareAttributes(properties, options);
+			}
 
 			if (_.isUndefined(properties.path)) {
 				properties.path = this.fileInfoModel.getFullPath();
@@ -180,8 +197,9 @@
 			return $.ajax({
 				type: 'POST',
 				url: this._getUrl('shares'),
-				data: properties,
-				dataType: 'json'
+				data: JSON.stringify(properties),
+				dataType: 'json',
+				contentType: "application/json"
 			}).done(function() {
 				self.fetch().done(function() {
 					if (_.isFunction(options.success)) {
@@ -205,16 +223,19 @@
 
 		updateShare: function(shareId, properties, options) {
 			var self = this;
-			options = options || {};
 
-			// Extend attributes for update share
-			properties.attributes = this._handleUpdateShareAttributes(shareId, properties, options);
+			// Extend attributes for update share if provided for update.
+			// note: required only for compatibility with attributes v1
+			if (this._registeredAttributes.length) {
+				properties.attributes = this._handleUpdateShareAttributes(shareId, properties, options);
+			}
 
 			return $.ajax({
 				type: 'PUT',
 				url: this._getUrl('shares/' + encodeURIComponent(shareId)),
-				data: properties,
-				dataType: 'json'
+				data: JSON.stringify(properties),
+				dataType: 'json',
+				contentType: "application/json"
 			}).done(function() {
 				self.fetch({
 					success: function() {
@@ -443,6 +464,15 @@
 			return share.share_type;
 		},
 
+		getExpirationDate: function(shareIndex) {
+			/** @type OC.Share.Types.ShareInfo **/
+			var share = this.get('shares')[shareIndex];
+			if(!_.isObject(share)) {
+				throw "Unknown Share";
+			}
+			return (share.expiration !== null) ? moment(share.expiration).format('DD-MM-YYYY') : null;
+		},
+
 		/**
 		 * whether permission is in permission bitmap
 		 *
@@ -642,14 +672,16 @@
 			return superShare;
 		},
 
-		fetch: function() {
+		fetch: function(options) {
 			var model = this;
+
 			this.trigger('request', this);
 
 			var deferred = $.when(
 				this._fetchShares(),
 				this._fetchReshare()
 			);
+
 			deferred.done(function(data1, data2) {
 				model.trigger('sync', 'GET', this);
 				var sharesMap = {};
@@ -662,10 +694,16 @@
 					reshare = model._groupReshares(data2[0].ocs.data);
 				}
 
+				// update model properties,
+				// this should cause rerendering of the object
 				model.set(model.parse({
 					shares: sharesMap,
 					reshare: reshare
-				}));
+				}), {
+					// do not allow silent, as apps might rely on reacting to
+					// changes to the model
+					silent: false,
+				});
 			});
 
 			return deferred;
@@ -838,6 +876,7 @@
 		 *
 		 * @param shareIndex
 		 * @returns OC.Share.Types.ShareAttribute[]
+		 * @deprecated ShareAttributesAPI v1 registration will be deprecated. ShareAttributesAPI v2 requires apps to extend this class
 		 */
 		getShareAttributes: function(shareIndex) {
 			/** @type OC.Share.Types.ShareInfo **/
@@ -856,12 +895,10 @@
 		 * @param {array} properties
 		 * @param {array} options
 		 * @returns {OC.Share.Types.ShareAttribute[]}
+		 * @deprecated ShareAttributesAPI v1 will be deprecated. ShareAttributesAPI v2 requires apps to overwrite addShare
 		 * @private
 		 */
 		_handleAddShareAttributes: function(properties, options) {
-			/**
-			 * @deprecated ShareAttributesAPI v1 will be depreciated. ShareAttributesAPI v2 requires apps to overwrite addShare
-			 */
 			var shareAttributesV1 = [];
 			var filteredRegisteredAttributes = this._filterRegisteredAttributes(properties.permissions);
 			_.map(filteredRegisteredAttributes, function (filteredRegisteredAttribute) {
@@ -904,12 +941,10 @@
 		 * @param {array} properties
 		 * @param {array} options
 		 * @returns {OC.Share.Types.ShareAttribute[]}
+		 * @deprecated ShareAttributesAPI v1 will be deprecated. ShareAttributesAPI v2 requires apps to overwrite updateShare
 		 * @private
 		 */
 		_handleUpdateShareAttributes: function(shareId, properties, options) {
-			/**
-			 * @deprecated ShareAttributesAPI v1 will be depreciated. ShareAttributesAPI v2 requires apps to overwrite updateShare
-			 */
 			var shareAttributesV1 = [];
 			var filteredAttributes = [];
 			var filteredRegisteredAttributes = this._filterRegisteredAttributes(properties.permissions);
@@ -1006,7 +1041,7 @@
 		 *
 		 * @param {number} permissions
 		 * @returns {OC.Share.Types.RegisteredShareAttribute[]}
-		 * @deprecated ShareAttributesAPI v1 registration will be depreciated. ShareAttributesAPI v2 requires apps to extend this class
+		 * @deprecated ShareAttributesAPI v1 registration will be deprecated. ShareAttributesAPI v2 requires apps to extend this class
 		 * @private
 		 */
 		_filterRegisteredAttributes: function(permissions) {
@@ -1040,7 +1075,7 @@
 		 * @param scope
 		 * @param key
 		 * @returns {OC.Share.Types.RegisteredShareAttribute}
-		 * @deprecated ShareAttributesAPI v1 registration will be depreciated. ShareAttributesAPI v2 requires apps to extend this class
+		 * @deprecated ShareAttributesAPI v1 registration will be deprecated. ShareAttributesAPI v2 requires apps to extend this class
 		 */
 		getRegisteredShareAttribute: function(scope, key) {
 			for(var i in this._registeredAttributes) {
@@ -1060,7 +1095,7 @@
 		 *   incompatible attribute -> functionality is ignored
 		 *
 		 * @param {OC.Share.Types.RegisteredShareAttribute} $shareAttribute
-		 * @deprecated ShareAttributesAPI v1 registration will be depreciated. ShareAttributesAPI v2 requires apps to extend this class
+		 * @deprecated ShareAttributesAPI v1 registration will be deprecated. ShareAttributesAPI v2 requires apps to extend this class
 		 */
 		registerShareAttribute: function($shareAttribute) {
 			// Add extra permission or update if already existing

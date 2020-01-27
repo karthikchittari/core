@@ -47,7 +47,7 @@ class SyncServiceTest extends TestCase {
 	/** @var AccountMapper | \PHPUnit\Framework\MockObject\MockObject */
 	private $mapper;
 
-	protected function setUp() {
+	protected function setUp(): void {
 		parent::setUp();
 
 		$this->config = $this->createMock(IConfig::class);
@@ -111,8 +111,7 @@ class SyncServiceTest extends TestCase {
 		// Ignore state flag
 
 		$s = new SyncService($this->config, $this->logger, $this->mapper);
-		$s->run($backend, new AllUsersIterator($backend), function ($uid) {
-		});
+		$s->run($backend, new AllUsersIterator($backend));
 
 		static::invokePrivate($s, 'syncHome', [$account, $backend]);
 	}
@@ -135,8 +134,7 @@ class SyncServiceTest extends TestCase {
 		$this->logger->expects($this->at(1))->method('logException');
 
 		$s = new SyncService($this->config, $this->logger, $this->mapper);
-		$s->run($backend, new AllUsersIterator($backend), function ($uid) {
-		});
+		$s->run($backend, new AllUsersIterator($backend));
 	}
 
 	public function testSyncHomeLogsWhenBackendDiffersFromExisting() {
@@ -160,9 +158,10 @@ class SyncServiceTest extends TestCase {
 	}
 
 	/**
-	 * @expectedException \InvalidArgumentException
 	 */
 	public function testTrySyncExistingUserWithOtherBackend() {
+		$this->expectException(\InvalidArgumentException::class);
+
 		$uid = 'myTestUser';
 
 		$wrongBackend = new Database();
@@ -187,7 +186,7 @@ class SyncServiceTest extends TestCase {
 		$backend = $this->createMock(UserInterface::class);
 		$result = $s->analyzeExistingUsers($backend, function () {
 		});
-		$this->assertInternalType('array', $result);
+		$this->assertIsArray($result);
 		$this->assertCount(2, $result);
 	}
 
@@ -294,7 +293,7 @@ class SyncServiceTest extends TestCase {
 			->method('getUserValue')
 			->with('user1', 'core', 'username', null)
 			->willReturn(null);
-		
+
 		$this->config->expects($this->once())
 			->method('setUserValue')
 			->with('user1', 'core', 'username', 'userName1');

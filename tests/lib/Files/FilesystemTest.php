@@ -82,14 +82,14 @@ class FilesystemTest extends TestCase {
 		return ['datadir' => $dir];
 	}
 
-	protected function setUp() {
+	protected function setUp(): void {
 		parent::setUp();
 		$this->createUser(self::TEST_FILESYSTEM_USER1, self::TEST_FILESYSTEM_USER1);
 		$this->createUser(self::TEST_FILESYSTEM_USER2, self::TEST_FILESYSTEM_USER2);
 		$this->loginAsUser();
 	}
 
-	protected function tearDown() {
+	protected function tearDown(): void {
 		foreach ($this->tmpDirs as $dir) {
 			\OC_Helper::rmdirr($dir);
 		}
@@ -273,7 +273,30 @@ class FilesystemTest extends TestCase {
 	 * @dataProvider isFileBlacklistedData
 	 */
 	public function testIsFileBlacklisted($path, $expected) {
-		$this->assertSame($expected, Filesystem::isForbiddenFileOrDir($path));
+		$this->assertSame($expected, Filesystem::isForbiddenFileOrDir($path, ['.htaccess']));
+	}
+
+	public function isFileBlacklistedRegexData() {
+		return [
+			['/etc/foo/outlook.ptt',      [ '.*\.pst$', '.*dummy.*', '^sample.*', ], false],
+			['/etc/foo/outlook.pst',      [ '.*\.pst$', '.*dummy.*', '^sample.*', ], true],
+			['/etc/foo/outlook.PST',      [ '.*\.pst$', '.*dummy.*', '^sample.*', ], true],
+			['/toto.txt',                 [ '.*\.pst$', '.*dummy.*', '^sample.*', ], false],
+			['/etc/toto.txt',             [ '.*\.pst$', '.*dummy.*', '^sample.*', ], false],
+			['/etc/foo/machin.txt',       [ '.*\.pst$', '.*dummy.*', '^sample.*', ], false],
+			['/etc/dummy/machin.chose',   [ '.*\.pst$', '.*dummy.*', '^sample.*', ], true],
+			['/etc/foo/dummy_machin.txt', [ '.*\.pst$', '.*dummy.*', '^sample.*', ], true],
+			['/etc/foo/dUMMy_machin.txt', [ '.*\.pst$', '.*dummy.*', '^sample.*', ], true],
+			['/etc/foo/sample.txt',       [ '.*\.pst$', '.*dummy.*', '^sample.*', ], true],
+			['/sample.pst',               [ '.*\.pst$', '.*dummy.*', '^sample.*', ], true],
+		];
+	}
+
+	/**
+	 * @dataProvider isFileBlacklistedRegexData
+	 */
+	public function testIsFileBlacklistedRegex($path, $regex, $expected) {
+		$this->assertSame($expected, Filesystem::isForbiddenFileOrDir($path, $regex));
 	}
 
 	public function isExcludedData() {
@@ -297,6 +320,31 @@ class FilesystemTest extends TestCase {
 	 */
 	public function testIsExcluded($path, $expected) {
 		$this->assertSame($expected, Filesystem::isForbiddenFileOrDir($path, ['.snapshot']));
+	}
+
+	public function isExcludedDataRegex() {
+		return [
+			['/backup',               [ '.*backup.*', 'Thomas.*', ], true],
+			['/_backup',              [ '.*backup.*', 'Thomas.*', ], true],
+			['/backup_',              [ '.*backup.*', 'Thomas.*', ], true],
+			['/foo/backup/bar',       [ '.*backup.*', 'Thomas.*', ], true],
+			['/foo/baCKup/bar',       [ '.*backup.*', 'Thomas.*', ], true],
+			['/foo/bac.kup/bar',      [ '.*backup.*', 'Thomas.*', ], false],
+			['/ThomasFolder',         [ '.*backup.*', 'Thomas.*', ], true],
+			['/thomasFolder',         [ '.*backup.*', 'Thomas.*', ], true],
+			['/foo/_Thomas/Files',    [ '.*backup.*', 'Thomas.*', ], true],
+			['/foo/ThomasFoo/Files',  [ '.*backup.*', 'Thomas.*', ], true],
+			['/foo/_ThomasFoo/Files', [ '.*backup.*', 'Thomas.*', ], true],
+		];
+	}
+
+	/**
+	 * The parameter array can be redesigned if filesystem.php will get a constructor where it is possible to
+	 * define the excluded directories for unit tests
+	 * @dataProvider isExcludedDataRegex
+	 */
+	public function testIsExcludedRegex($path, $regex, $expected) {
+		$this->assertSame($expected, Filesystem::isForbiddenFileOrDir($path, $regex));
 	}
 
 	public function testNormalizePathUTF8() {
@@ -340,18 +388,20 @@ class FilesystemTest extends TestCase {
 	/**
 	 * Tests that an exception is thrown when passed user does not exist.
 	 *
-	 * @expectedException \OC\User\NoUserException
 	 */
 	public function testLocalMountWhenUserDoesNotExist() {
+		$this->expectException(\OC\User\NoUserException::class);
+
 		$userId = $this->getUniqueID('user_');
 
 		Filesystem::initMountPoints($userId);
 	}
 
 	/**
-	 * @expectedException \OC\User\NoUserException
 	 */
 	public function testNullUserThrows() {
+		$this->expectException(\OC\User\NoUserException::class);
+
 		Filesystem::initMountPoints(null);
 	}
 

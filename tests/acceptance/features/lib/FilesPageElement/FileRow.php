@@ -62,6 +62,7 @@ class FileRow extends OwncloudPage {
 	protected $sharingDialogXpath = ".//div[@class='dialogContainer']";
 	protected $lockDialogId = "lockTabView";
 	protected $highlightsXpath = "//div[@class='highlights']";
+	protected $sharedIndicatorXpath = "//div[contains(@class, 'sharetree-item')]";
 
 	/**
 	 *
@@ -139,8 +140,8 @@ class FileRow extends OwncloudPage {
 	/**
 	 * finds and clicks the file actions button
 	 *
-	 * @throws ElementNotFoundException
 	 * @return void
+	 * @throws ElementNotFoundException
 	 */
 	public function clickFileActionButton() {
 		$this->findFileActionButton()->click();
@@ -151,8 +152,8 @@ class FileRow extends OwncloudPage {
 	 *
 	 * @param Session $session
 	 *
-	 * @throws ElementNotFoundException
 	 * @return FileActionsMenu
+	 * @throws ElementNotFoundException
 	 */
 	public function openFileActionsMenu(Session $session) {
 		$this->clickFileActionButton();
@@ -176,8 +177,8 @@ class FileRow extends OwncloudPage {
 	/**
 	 * finds and returns the share button element
 	 *
-	 * @throws ElementNotFoundException
 	 * @return NodeElement
+	 * @throws ElementNotFoundException
 	 */
 	public function findSharingButton() {
 		$shareBtn = $this->rowElement->find("xpath", $this->shareBtnXpath);
@@ -195,8 +196,8 @@ class FileRow extends OwncloudPage {
 	 *
 	 * @param Session $session
 	 *
-	 * @throws ElementNotFoundException
 	 * @return SharingDialog
+	 * @throws ElementNotFoundException
 	 */
 	public function openSharingDialog(Session $session) {
 		$this->findSharingButton()->click();
@@ -215,8 +216,8 @@ class FileRow extends OwncloudPage {
 	/**
 	 * opens the lock dialog that list all locks of the given file row
 	 *
-	 * @throws ElementNotFoundException
 	 * @return LockDialog
+	 * @throws ElementNotFoundException
 	 */
 	public function openLockDialog() {
 		$element = $this->rowElement->find("xpath", $this->lockStateXpath);
@@ -261,8 +262,8 @@ class FileRow extends OwncloudPage {
 	/**
 	 * finds the input field to rename the file/folder
 	 *
-	 * @throws ElementNotFoundException
 	 * @return NodeElement
+	 * @throws ElementNotFoundException
 	 */
 	public function findRenameInputField() {
 		$inputField = $this->rowElement->find(
@@ -309,8 +310,8 @@ class FileRow extends OwncloudPage {
 	/**
 	 * finds and returns the tooltip element
 	 *
-	 * @throws ElementNotFoundException
 	 * @return NodeElement
+	 * @throws ElementNotFoundException
 	 */
 	public function findTooltipElement() {
 		$element = $this->rowElement->find("xpath", $this->fileTooltipXpath);
@@ -337,8 +338,8 @@ class FileRow extends OwncloudPage {
 	 *
 	 * @param string $xpath xpath related to the fileRow element
 	 *
-	 * @throws ElementNotFoundException
 	 * @return string
+	 * @throws ElementNotFoundException
 	 */
 	public function getFilePath($xpath) {
 		$filePathElement = $this->rowElement->find("xpath", $xpath);
@@ -353,8 +354,8 @@ class FileRow extends OwncloudPage {
 	/**
 	 * finds and returns the thumbnail of the file
 	 *
-	 * @throws ElementNotFoundException
 	 * @return NodeElement
+	 * @throws ElementNotFoundException
 	 */
 	public function findThumbnail() {
 		$thumbnail = $this->rowElement->find("xpath", $this->thumbnailXpath);
@@ -380,8 +381,8 @@ class FileRow extends OwncloudPage {
 	/**
 	 * find and return the link to the file/folder
 	 *
-	 * @throws ElementNotFoundException
 	 * @return NodeElement
+	 * @throws ElementNotFoundException
 	 */
 	public function findFileLink() {
 		$linkElement = $this->rowElement->find("xpath", $this->fileLinkXpath);
@@ -405,7 +406,7 @@ class FileRow extends OwncloudPage {
 		$this->findFileLink()->click();
 		$this->waitForAjaxCallsToStartAndFinish($session);
 	}
-	
+
 	/**
 	 * restore the current deleted file and folder by clicking on the restore link
 	 *
@@ -446,14 +447,14 @@ class FileRow extends OwncloudPage {
 		$checkFavorite = $this->rowElement->find(
 			"xpath", $this->markedFavoriteXpath
 		);
-		
+
 		if ($checkFavorite === null) {
 			return false;
 		} else {
 			return true;
 		}
 	}
-	
+
 	/**
 	 * unmarks the current file or folder off favorite by clicking the star icon
 	 *
@@ -472,9 +473,9 @@ class FileRow extends OwncloudPage {
 	/**
 	 * returns the lock state
 	 *
+	 * @return bool
 	 * @throws ElementNotFoundException
 	 *
-	 * @return bool
 	 */
 	public function getLockState() {
 		$element = $this->rowElement->find("xpath", $this->lockStateXpath);
@@ -487,9 +488,9 @@ class FileRow extends OwncloudPage {
 	/**
 	 * returns the share state (only works on the "Shared with you" page)
 	 *
+	 * @return string
 	 * @throws ElementNotFoundException
 	 *
-	 * @return string
 	 */
 	public function getShareState() {
 		$element = $this->rowElement->find("xpath", $this->shareStateXpath);
@@ -503,9 +504,9 @@ class FileRow extends OwncloudPage {
 
 	/**
 	 *
+	 * @return string
 	 * @throws ElementNotFoundException
 	 *
-	 * @return string
 	 */
 	public function getSharer() {
 		$element = $this->rowElement->find("xpath", $this->sharerXpath);
@@ -516,6 +517,7 @@ class FileRow extends OwncloudPage {
 		);
 		return \trim($element->getText());
 	}
+
 	/**
 	 *
 	 * @param Session $session
@@ -559,8 +561,8 @@ class FileRow extends OwncloudPage {
 	 * returns the element that contains the highlighted content of the file
 	 * when using elastic search
 	 *
-	 * @throws ElementNotFoundException
 	 * @return NodeElement
+	 * @throws ElementNotFoundException
 	 */
 	public function getHighlightsElement() {
 		$element = $this->rowElement->find("xpath", $this->highlightsXpath);
@@ -584,5 +586,18 @@ class FileRow extends OwncloudPage {
 	public function isActionLabelAvailable($actionLabel, Session $session) {
 		$actionMenu = $this->openFileActionsMenu($session);
 		return $actionMenu->isActionLabelVisible($actionLabel);
+	}
+
+	/**
+	 * @return bool
+	 */
+	public function isSharedIndicatorPresent() {
+		if ($this->rowElement->find(
+			"xpath", $this->sharedIndicatorXpath
+		) === null
+		) {
+			return false;
+		}
+		return true;
 	}
 }

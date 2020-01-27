@@ -51,7 +51,6 @@
 	white-space   : normal;
 }
 
-#shareWithList .showCruds img,
 #shareWithList .unshare img {
 	vertical-align: text-bottom;
 	/* properly align icons */
@@ -74,6 +73,61 @@
 
 #shareWithList li label {
 	margin-right: 8px;
+}
+
+#shareWithList .expiration {
+	max-width: 190px;
+	text-align: left;
+	margin: 0 0 0 5px;
+}
+
+#shareWithList .removeExpiration {
+	text-indent: -9999px;
+	border: 0 none;
+	transform: translate(calc(-100% - 5px), -1px);
+	background-color: #F8F8F8;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-image: url('../../../core/img/actions/close.svg');
+}
+
+#shareDialogLinkList .link-shares + #shareTreeUserGroupList {
+	margin-top: -20px;
+}
+
+#shareWithList + #shareTreeUserGroupList {
+	margin-top: -16px;
+}
+
+#shareTreeLinkList .shareTree-item,
+#shareTreeUserGroupList .shareTree-item {
+	display: flex;
+	justify-content: flex-start;
+	align-items: center;
+	padding-top: 5px;
+	padding-bottom: 5px;
+}
+
+.shareTree-item * {
+	cursor: pointer;
+}
+
+.shareTree-item-avatar {
+	border-radius: 50%;
+	float: left;
+	min-width: 32px;
+	min-height: 32px;
+}
+
+.shareTree-item-avatar + .shareTree-item-name,
+.shareTree-item-name + .shareTree-item-path {
+	margin-left: 8px;
+	white-space: nowrap;
+}
+
+.shareTree-item-avatar + .shareTree-item-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .shareTabView .icon-loading-small {
@@ -300,7 +354,7 @@
 	font-size: 1px;
 }
 
-.shareDialogExpirationView .error-message,
+.shareDialogLinkExpirationView .error-message,
 .linkPass .error-message {
 	color: red;
     padding: 4px;

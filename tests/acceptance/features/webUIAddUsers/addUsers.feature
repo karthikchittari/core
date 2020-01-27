@@ -14,20 +14,22 @@ Feature: add users
     And user "guiusr1" logs in using the webUI
     Then the user should be redirected to a webUI page with the title "Files - %productname%"
 
+  @skipOnOcV10.3
   Scenario: use the webUI to create a user with special valid characters
-    When the administrator creates a user with the name "@-_.'" and the password "%regular%" using the webUI
+    When the administrator creates a user with the name "@-+_.'" and the password "%regular%" using the webUI
     And the administrator logs out of the webUI
-    And user "@-_.'" logs in using the webUI
+    And user "@-+_.'" logs in using the webUI
     Then the user should be redirected to a webUI page with the title "Files - %productname%"
 
+  @skipOnOcV10.3
   Scenario: use the webUI to create a user with special invalid characters
     When the administrator attempts to create these users then the notifications should be as listed
-      | user | password    | notification                                                                                                   |
-      | a#%  | "%regular%" | Error creating user: Only the following characters are allowed in a username: "a-z", "A-Z", "0-9", and "_.@-'" |
-      | a+^  | "%alt1%"    | Error creating user: Only the following characters are allowed in a username: "a-z", "A-Z", "0-9", and "_.@-'" |
-      | a)~  | "%alt2%"    | Error creating user: Only the following characters are allowed in a username: "a-z", "A-Z", "0-9", and "_.@-'" |
-      | a(=  | "%alt3%"    | Error creating user: Only the following characters are allowed in a username: "a-z", "A-Z", "0-9", and "_.@-'" |
-      | a`*^ | "%alt4%"    | Error creating user: Only the following characters are allowed in a username: "a-z", "A-Z", "0-9", and "_.@-'" |
+      | user | password    | notification                                                                                                    |
+      | a#%  | "%regular%" | Error creating user: Only the following characters are allowed in a username: "a-z", "A-Z", "0-9", and "+_.@-'" |
+      | a+^  | "%alt1%"    | Error creating user: Only the following characters are allowed in a username: "a-z", "A-Z", "0-9", and "+_.@-'" |
+      | a)~  | "%alt2%"    | Error creating user: Only the following characters are allowed in a username: "a-z", "A-Z", "0-9", and "+_.@-'" |
+      | a(=  | "%alt3%"    | Error creating user: Only the following characters are allowed in a username: "a-z", "A-Z", "0-9", and "+_.@-'" |
+      | a`*^ | "%alt4%"    | Error creating user: Only the following characters are allowed in a username: "a-z", "A-Z", "0-9", and "+_.@-'" |
 
   Scenario: use the webUI to create a user with empty password
     When the administrator attempts to create a user with the name "bijay" and the password "" using the webUI
@@ -55,7 +57,7 @@ Feature: add users
       Access it:
       """
 
-  @smokeTest @skipOnOcV10.0 @skipOnOcV10.1
+  @smokeTest @skipOnOcV10.0 @skipOnOcV10.1 @skipOnOcV10.2 @skipOnOcV10.3
   Scenario Outline: user sets his own password after being created with an Email address only
     When the administrator creates a user with the name "<username>" and the email "guiusr1@owncloud" without a password using the webUI
     And the administrator logs out of the webUI
@@ -71,8 +73,9 @@ Feature: add users
     Examples:
       | username | comment               |
       | guiusr1  | simple user-name      |
-      | a@-_.'b  | complicated user-name |
+      | a@-+_.'b | complicated user-name |
 
+  @skipOnOcV10.3
   Scenario Outline: user sets his own password but retypes it wrongly after being created with an Email address only
     When the administrator creates a user with the name "<username>" and the email "guiusr1@owncloud" without a password using the webUI
     And the administrator logs out of the webUI
@@ -85,7 +88,7 @@ Feature: add users
     Examples:
       | username | comment               |
       | guiusr1  | simple user-name      |
-      | a@-_.'b  | complicated user-name |
+      | a@-+_.'b | complicated user-name |
 
   Scenario Outline: webUI refuses to create users with invalid Email addresses
     When the administrator creates a user with the name "guiusr1" and the email "<email>" without a password using the webUI
@@ -174,7 +177,7 @@ Feature: add users
       | password                     | comment                     |
       | !@#$%^&*()-_+=[]{}:;,.<>?~/\ | special characters          |
       | España                       | special European characters |
-      | नेपाली                                                  | Unicode                     |
+      | नेपाली                       | Unicode                     |
       | password with spaces         | password with spaces        |
 
   Scenario Outline: admin creates a user without setting password and user sets password containing special characters
@@ -190,7 +193,7 @@ Feature: add users
       | password                     | comment                     |
       | !@#$%^&*()-_+=[]{}:;,.<>?~/\ | special characters          |
       | España                       | special European characters |
-      | नेपाली                                                  | Unicode                     |
+      | नेपाली                       | Unicode                     |
       | password with spaces         | password with spaces        |
 
   Scenario: admin creates a user without setting password and user sets empty spaces as password
@@ -223,7 +226,7 @@ Feature: add users
     Then notifications should be displayed on the webUI with the text
       | Error creating user: A user with that name already exists. |
     Examples:
-      | user_id1          | user_id2       | user_id3       |
-      | Brand-New-User    | brand-new-user | BRAND-NEW-USER |
-      | brand-new-user    | BRAND-NEW-USER | Brand-New-User |
-      | BRAND-NEW-USER    | Brand-New-User | brand-new-user |
+      | user_id1       | user_id2       | user_id3       |
+      | Brand-New-User | brand-new-user | BRAND-NEW-USER |
+      | brand-new-user | BRAND-NEW-USER | Brand-New-User |
+      | BRAND-NEW-USER | Brand-New-User | brand-new-user |

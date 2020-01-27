@@ -67,18 +67,17 @@ class CommentsContext implements Context {
 			"POST",
 			$commentsPath,
 			['Content-Type' => 'application/json'],
-			null,
-			"uploads",
 			'{"actorId":"user0",
 			"actorDisplayName":"user0",
 			"actorType":"users",
 			"verb":"comment",
 			"message":"' . $content . '",
 			"creationDateTime":"Thu, 18 Feb 2016 17:04:18 GMT",
-			"objectType":"files"}'
+			"objectType":"files"}',
+			"uploads"
 		);
 		$this->featureContext->setResponse($response);
-		$responseHeaders =  $response->getHeaders();
+		$responseHeaders = $response->getHeaders();
 		if (isset($responseHeaders['Content-Location'][0])) {
 			$commentUrl = $responseHeaders['Content-Location'][0];
 			$this->lastCommentId = \substr(
@@ -145,16 +144,17 @@ class CommentsContext implements Context {
 			$user, $commentsPath, $properties
 		);
 
-		$elementRows = $expectedElements->getRows();
+		$this->featureContext->verifyTableNodeColumns($expectedElements, ['user', 'comment']);
+		$elementRows = $expectedElements->getColumnsHash();
 		foreach ($elementRows as $expectedElement) {
 			$commentFound = false;
 			$properties = $elementList->xpath(
 				"//d:prop"
 			);
 			foreach ($properties as $property) {
-				$actorIdXml = $property->xpath("//oc:actorId[text() = '$expectedElement[0]']");
-				$messageXml = $property->xpath("//oc:message[text() = '$expectedElement[1]']");
-				
+				$actorIdXml = $property->xpath("//oc:actorId[text() = '{$expectedElement['user']}']");
+				$messageXml = $property->xpath("//oc:message[text() = '{$expectedElement['comment']}']");
+
 				if (isset($actorIdXml[0], $messageXml[0])) {
 					$commentFound = true;
 					break;
@@ -162,8 +162,8 @@ class CommentsContext implements Context {
 			}
 			Assert::assertTrue(
 				$commentFound,
-				"Comment with actorId = '$expectedElement[0]' " .
-				"and message = '$expectedElement[1]' not found"
+				"Comment with actorId = '{$expectedElement['user']}' " .
+				"and message = '{$expectedElement['comment']}' not found"
 			);
 		}
 	}
@@ -233,8 +233,7 @@ class CommentsContext implements Context {
 			$commentsPath,
 			[],
 			null,
-			"uploads",
-			null
+			"uploads"
 		);
 		$this->featureContext->setResponse($response);
 	}
@@ -248,7 +247,7 @@ class CommentsContext implements Context {
 	 * @return void
 	 * @throws \Exception
 	 */
-	public function userDeletesLastComment($user=null) {
+	public function userDeletesLastComment($user = null) {
 		if ($user === null) {
 			$user = $this->featureContext->getCurrentUser();
 		}
@@ -264,7 +263,7 @@ class CommentsContext implements Context {
 	 * @return void
 	 * @throws \Exception
 	 */
-	public function userHasDeletedLastComment($user=null) {
+	public function userHasDeletedLastComment($user = null) {
 		$this->userDeletesLastComment($user);
 		$this->featureContext->theHTTPStatusCodeShouldBe("204");
 	}
@@ -304,7 +303,7 @@ class CommentsContext implements Context {
 	 */
 	public function theResponseShouldContainOnlyComments($number) {
 		$response = $this->featureContext->getResponse();
-		if (\count($response) !== (int)$number) {
+		if (\count($response) !== (int) $number) {
 			throw new \Exception(
 				"Found more comments than $number (" . \count($response) . ")"
 			);
@@ -326,8 +325,6 @@ class CommentsContext implements Context {
 			"PROPPATCH",
 			$commentsPath,
 			[],
-			null,
-			"uploads",
 			'<?xml version="1.0"?>
 				<d:propertyupdate  xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
 					<d:set>
@@ -335,7 +332,8 @@ class CommentsContext implements Context {
 							<oc:message>' . \htmlspecialchars($content, ENT_XML1, 'UTF-8') . '</oc:message>
 						</d:prop>
 					</d:set>
-				</d:propertyupdate>'
+				</d:propertyupdate>',
+			"uploads"
 		);
 		$this->featureContext->setResponse($response);
 	}
@@ -418,7 +416,7 @@ class CommentsContext implements Context {
 		$response = WebDavHelper::makeDavRequest(
 			$this->featureContext->getBaseUrl(), $user,
 			$this->featureContext->getPasswordForUser($user), 'REPORT', $path, [],
-			$body, null, $this->featureContext->getDavPathVersion(), "comments"
+			$body, $this->featureContext->getDavPathVersion(), "comments"
 		);
 		return HttpRequestHelper::getResponseXml($response);
 	}

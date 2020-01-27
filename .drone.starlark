@@ -79,6 +79,7 @@ config = {
 			'suites': [
 				'apiAuth',
 				'apiAuthOcs',
+				'apiAuthWebDav',
 				'apiCapabilities',
 				'apiComments',
 				'apiFavorites',
@@ -87,11 +88,15 @@ config = {
 				'apiProvisioning-v2',
 				'apiProvisioningGroups-v1',
 				'apiProvisioningGroups-v2',
+				'apiShareCreateSpecial',
 				'apiSharees',
 				'apiShareManagement',
 				'apiShareManagementBasic',
 				'apiShareOperations',
-				'apiShareReshare',
+				'apiSharePublicLink1',
+				'apiSharePublicLink2',
+				'apiShareReshare1',
+				'apiShareReshare2',
 				'apiShareUpdate',
 				'apiTags',
 				'apiTrashbin',
@@ -122,6 +127,7 @@ config = {
 		'cli': {
 			'suites': [
 				'cliBackground',
+				'cliLocalStorage',
 				'cliMain',
 				'cliProvisioning',
 				'cliTrashbin',
@@ -244,7 +250,7 @@ def initialPipelines():
 	return dependencies()
 
 def beforePipelines():
-	return codestyle() + phpstan() + phan()
+	return codestyle() + changelog() + phpstan() + phan()
 
 def stagePipelines():
 	jsPipelines = javascript()
@@ -461,6 +467,139 @@ def codestyle():
 
 	return pipelines
 
+def changelog():
+	pipelines = []
+
+	result = {
+		'kind': 'pipeline',
+		'type': 'docker',
+		'name': 'changelog',
+		'clone': {
+			'disable': True,
+		},
+		'steps':
+			[
+				{
+					'name': 'clone-master',
+					'image': 'plugins/git-action:1',
+					'pull': 'always',
+					'settings': {
+						'actions': [
+							'clone',
+							],
+							'remote': 'https://github.com/owncloud/core.git',
+							'branch': 'master',
+							'path': '/drone/src',
+							'netrc_machine': 'github.com',
+							'netrc_username': {
+								'from_secret': 'github_username',
+							},
+							'netrc_password': {
+								'from_secret': 'github_token',
+							},
+					},
+					'when': {
+						'ref': {
+							'exclude': [
+								'refs/pull/**',
+							],
+						},
+					},
+				},
+				{
+					'name': 'clone-branch',
+					'image': 'plugins/git-action:1',
+					'pull': 'always',
+					'settings': {
+						'actions': [
+							'clone',
+							],
+							'remote': 'https://github.com/owncloud/core.git',
+							'branch': '${DRONE_SOURCE_BRANCH}',
+							'path': '/drone/src',
+							'netrc_machine': 'github.com',
+							'netrc_username': {
+								'from_secret': 'github_username',
+							},
+							'netrc_password': {
+								'from_secret': 'github_token',
+							},
+					},
+					'when': {
+						'ref': {
+							'exclude': [
+								'refs/heads/master',
+							],
+						},
+					},
+				},
+				{
+					'name': 'generate',
+					'image': 'toolhippie/calens:latest',
+					'pull': 'always',
+					'commands': [
+						'calens >| CHANGELOG.md',
+					],
+				},
+				{
+					'name': 'diff',
+					'image': 'owncloud/alpine:latest',
+					'pull': 'always',
+					'commands': [
+						'git diff',
+					],
+				},
+				{
+					'name': 'output',
+					'image': 'toolhippie/calens:latest',
+					'pull': 'always',
+					'commands': [
+						'cat CHANGELOG.md',
+					],
+				},
+				{
+					'name': 'publish',
+					'image': 'plugins/git-action:1',
+					'pull': 'always',
+					'settings': {
+						'actions': [
+							'commit',
+							'push',
+						],
+						'message': 'Automated changelog update [skip ci]',
+						'branch': 'master',
+						'author_email': 'devops@owncloud.com',
+						'author_name': 'ownClouders',
+						'netrc_machine': 'github.com',
+						'netrc_username': {
+							'from_secret': 'github_username',
+						},
+						'netrc_password': {
+							'from_secret': 'github_token',
+						},
+					},
+					'when': {
+						'ref': {
+							'exclude': [
+								'refs/pull/**',
+							],
+						},
+					},
+				},
+			],
+		'depends_on': [],
+		'trigger': {
+			'ref': [
+				'refs/heads/master',
+				'refs/pull/**',
+			],
+		},
+	}
+
+	pipelines.append(result)
+
+	return pipelines
+
 def phpstan():
 	pipelines = []
 
@@ -674,7 +813,6 @@ def litmus():
 					vendorbinInstall(phpVersion) +
 					yarnInstall(phpVersion) +
 					installServer(phpVersion, db, params['logLevel']) +
-					techPreview(phpVersion) +
 					setupLocalStorage(phpVersion) +
 					fixPermissions(phpVersion, False) +
 					createShare(phpVersion) +
@@ -1309,6 +1447,8 @@ def acceptance():
 									if (params['scalityS3'] != False):
 										environment['S3_TYPE'] = 'scality'
 
+								federationDbSuffix = '-federated'
+
 								result = {
 									'kind': 'pipeline',
 									'type': 'docker',
@@ -1324,7 +1464,7 @@ def acceptance():
 										yarnInstall(phpVersion) +
 										installServer(phpVersion, db, params['logLevel'], params['federatedServerNeeded'], params['proxyNeeded']) +
 										(
-											installFederated(federatedServerVersion, phpVersion, params['logLevel'], protocol) +
+											installFederated(federatedServerVersion, phpVersion, params['logLevel'], protocol, db, federationDbSuffix) +
 											owncloudLog('federated', 'federated') if params['federatedServerNeeded'] else []
 										) +
 										installExtraApps(phpVersion, extraAppsDict) +
@@ -1332,6 +1472,7 @@ def acceptance():
 										setupScality(phpVersion, params['scalityS3']) +
 										params['extraSetup'] +
 										fixPermissions(phpVersion, params['federatedServerNeeded']) +
+										waitForServer(phpVersion, params['federatedServerNeeded']) +
 										owncloudLog('server', 'src') +
 									[
 										({
@@ -1356,7 +1497,10 @@ def acceptance():
 										scalityService(params['scalityS3']) +
 										params['extraServices'] +
 										owncloudService(phpVersion, 'server', '/drone/src', params['useHttps']) +
-										(owncloudService(phpVersion, 'federated', '/drone/federated', params['useHttps']) if params['federatedServerNeeded'] else []),
+										((
+											owncloudService(phpVersion, 'federated', '/drone/federated', params['useHttps']) +
+											databaseServiceForFederation(db, federationDbSuffix)
+										) if params['federatedServerNeeded'] else []),
 									'depends_on': [],
 									'trigger': {
 										'ref': [
@@ -1755,16 +1899,6 @@ def davInstall(phpVersion, scriptPath):
 		]
 	}]
 
-def techPreview(phpVersion):
-	return [{
-		'name': 'tech-preview',
-		'image': 'owncloudci/php:%s' % phpVersion,
-		'pull': 'always',
-		'commands': [
-			'php occ config:system:set dav.enable.tech_preview --value=true --type boolean'
-		]
-	}]
-
 def setupLocalStorage(phpVersion):
 	return [{
 		'name': 'setup-storage',
@@ -1790,9 +1924,9 @@ def createShare(phpVersion):
 		'pull': 'always',
 		'commands': [
 			'curl -k -s -u user1:123456 -X MKCOL "https://server/remote.php/webdav/new_folder"',
-			'curl -k -s -u user1:123456 "https://server/ocs/v2.php/apps/files_sharing/api/v1/shares" --data "path=/new_folder&shareType=0&permissions=15&name=new_folder&shareWith=admin"',
+			'curl -k -s -u user1:123456 "https://server/ocs/v2.php/apps/files_sharing/api/v1/shares" -H "OCS-APIREQUEST: true" --data "path=/new_folder&shareType=0&permissions=15&name=new_folder&shareWith=admin"',
 			'echo -n "PUBLIC_TOKEN=" > .env',
-			'curl -k -s -u user1:123456 "https://server/ocs/v2.php/apps/files_sharing/api/v1/shares" --data "path=/new_folder&shareType=3&permissions=15&name=new_folder" | grep token | cut -d">" -f2 | cut -d"<" -f1 >> .env',
+			'curl -k -s -u user1:123456 "https://server/ocs/v2.php/apps/files_sharing/api/v1/shares" -H "OCS-APIREQUEST: true" --data "path=/new_folder&shareType=3&permissions=15&name=new_folder" | grep token | cut -d">" -f2 | cut -d"<" -f1 >> .env',
 		]
 	}]
 
@@ -1816,6 +1950,25 @@ def installExtraApps(phpVersion, extraApps):
 		'image': 'owncloudci/php:%s' % phpVersion,
 		'pull': 'always',
 		'commands': commandArray
+	}]
+
+def databaseServiceForFederation(db, suffix):
+	dbName = getDbName(db)
+
+	if dbName not in ['mariadb', 'mysql']:
+		print('Not implemented federated database for ', dbName)
+		return []
+
+	return [{
+		'name': dbName + suffix,
+		'image': db,
+		'pull': 'always',
+		'environment': {
+			'MYSQL_USER': getDbUsername(db),
+			'MYSQL_PASSWORD': getDbPassword(db),
+			'MYSQL_DATABASE': getDbDatabase(db) + suffix,
+			'MYSQL_ROOT_PASSWORD': getDbRootPassword()
+		}
 	}]
 
 def installServer(phpVersion, db, logLevel, federatedServerNeeded = False, proxyNeeded = False):
@@ -1846,7 +1999,20 @@ def installServer(phpVersion, db, logLevel, federatedServerNeeded = False, proxy
 		]
 	}]
 
-def installFederated(federatedServerVersion, phpVersion, logLevel, protocol):
+def installFederated(federatedServerVersion, phpVersion, logLevel, protocol, db, dbSuffix = '-federated'):
+	host = getDbName(db)
+	dbType = host
+
+	username = getDbUsername(db)
+	password = getDbPassword(db)
+	database = getDbDatabase(db) + dbSuffix
+
+	if host == 'mariadb':
+		dbType = 'mysql'
+	elif host == 'postgres':
+		dbType = 'pgsql'
+	elif host == 'oracle':
+		dbType = 'oci'
 	return [
 		{
 			'name': 'install-federated',
@@ -1854,7 +2020,12 @@ def installFederated(federatedServerVersion, phpVersion, logLevel, protocol):
 			'pull': 'always',
 			'settings': {
 				'version': federatedServerVersion,
-				'core_path': '/drone/federated'
+				'core_path': '/drone/federated',
+				'db_type': dbType,
+				'db_name': database,
+				'db_host': host + dbSuffix,
+				'db_username': username,
+				'db_password': password
 			},
 		},
 		{
@@ -1887,7 +2058,7 @@ def setupCeph(phpVersion, cephS3):
 		'image': 'owncloudci/php:%s' % phpVersion,
 		'pull': 'always',
 		'commands': [
-			'wait-for-it -t 120 ceph:80',
+			'wait-for-it -t 600 ceph:80',
 			'cd /drone/src/apps/files_primary_s3',
 			'cp tests/drone/ceph.config.php /drone/src/config',
 			'cd /var/www/owncloud/server',
@@ -1912,7 +2083,7 @@ def setupScality(phpVersion, scalityS3):
 		'image': 'owncloudci/php:%s' % phpVersion,
 		'pull': 'always',
 		'commands': [
-			'wait-for-it -t 120 scality:8000',
+			'wait-for-it -t 600 scality:8000',
 			'cp /drone/src/apps/files_primary_s3/tests/drone/%s /drone/src/config' % configFile,
 			'php occ s3:create-bucket owncloud --accept-warning'
 		] + ([
@@ -1929,6 +2100,18 @@ def fixPermissions(phpVersion, federatedServerNeeded):
 			'chown -R www-data /drone/src'
 		] + ([
 			'chown -R www-data /drone/federated'
+		] if federatedServerNeeded else [])
+	}]
+
+def waitForServer(phpVersion, federatedServerNeeded):
+	return [{
+		'name': 'wait-for-server',
+		'image': 'owncloudci/php:%s' % phpVersion,
+		'pull': 'always',
+		'commands': [
+			'wait-for-it -t 600 server:80'
+		] + ([
+			'wait-for-it -t 600 federated:80'
 		] if federatedServerNeeded else [])
 	}]
 

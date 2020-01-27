@@ -36,9 +36,11 @@ use OC\Security\CSP\ContentSecurityPolicy;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\AppFramework\OCSController;
 use OCP\ISession;
 use OCP\AppFramework\Controller;
 use OCP\IUserSession;
+use PHPUnit\Framework\MockObject\MockObject;
 use Test\TestCase;
 use OCP\AppFramework\Http\Response;
 use OCP\IConfig;
@@ -53,26 +55,26 @@ class SecurityMiddlewareTest extends TestCase {
 
 	/** @var SecurityMiddleware */
 	private $middleware;
-	/** @var Controller | \PHPUnit\Framework\MockObject\MockObject */
+	/** @var Controller | MockObject */
 	private $controller;
 	private $secException;
 	private $secAjaxException;
-	/** @var IRequest | \PHPUnit\Framework\MockObject\MockObject */
+	/** @var IRequest | MockObject */
 	private $request;
-	/** @var ControllerMethodReflector | \PHPUnit\Framework\MockObject\MockObject */
+	/** @var ControllerMethodReflector | MockObject */
 	private $reader;
-	/** @var ILogger | \PHPUnit\Framework\MockObject\MockObject */
+	/** @var ILogger | MockObject */
 	private $logger;
-	/** @var INavigationManager | \PHPUnit\Framework\MockObject\MockObject */
+	/** @var INavigationManager | MockObject */
 	private $navigationManager;
-	/** @var IURLGenerator | \PHPUnit\Framework\MockObject\MockObject */
+	/** @var IURLGenerator | MockObject */
 	private $urlGenerator;
-	/** @var ContentSecurityPolicyManager | \PHPUnit\Framework\MockObject\MockObject */
+	/** @var ContentSecurityPolicyManager | MockObject */
 	private $contentSecurityPolicyManager;
-	/** @var IUserSession | \PHPUnit\Framework\MockObject\MockObject */
+	/** @var IUserSession | MockObject */
 	private $session;
 
-	protected function setUp() {
+	protected function setUp(): void {
 		parent::setUp();
 
 		$this->controller = $this->getMockBuilder(Controller::class)
@@ -109,9 +111,9 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @param bool $isAdminUser
 	 * @return SecurityMiddleware
 	 */
-	private function getMiddleware($isLoggedIn, $isAdminUser) {
+	private function getMiddleware($isLoggedIn, $isAdminUser): SecurityMiddleware {
 		$this->session = $this->createMock(IUserSession::class);
-		$this->session->expects($this->any())->method('isLoggedIn')->willReturn($isLoggedIn);
+		$this->session->method('isLoggedIn')->willReturn($isLoggedIn);
 		return new SecurityMiddleware(
 			$this->request,
 			$this->reader,
@@ -131,7 +133,7 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @throws SecurityException
 	 * @throws \ReflectionException
 	 */
-	public function testSetNavigationEntry() {
+	public function testSetNavigationEntry(): void {
 		$this->navigationManager->expects($this->once())
 			->method('setActiveEntry')
 			->with($this->equalTo('files'));
@@ -146,7 +148,7 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @param $status
 	 * @throws \ReflectionException
 	 */
-	private function ajaxExceptionStatus($method, $test, $status) {
+	private function ajaxExceptionStatus($method, $test, $status): void {
 		$isLoggedIn = false;
 		$isAdminUser = false;
 
@@ -174,7 +176,7 @@ class SecurityMiddlewareTest extends TestCase {
 	/**
 	 * @throws \ReflectionException
 	 */
-	public function testAjaxStatusLoggedInCheck() {
+	public function testAjaxStatusLoggedInCheck(): void {
 		$this->ajaxExceptionStatus(
 			__FUNCTION__,
 			'isLoggedIn',
@@ -186,7 +188,7 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @NoCSRFRequired
 	 * @throws \ReflectionException
 	 */
-	public function testAjaxNotAdminCheck() {
+	public function testAjaxNotAdminCheck(): void {
 		$this->ajaxExceptionStatus(
 			__FUNCTION__,
 			'isAdminUser',
@@ -198,7 +200,7 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @PublicPage
 	 * @throws \ReflectionException
 	 */
-	public function testAjaxStatusCSRFCheck() {
+	public function testAjaxStatusCSRFCheck(): void {
 		$this->ajaxExceptionStatus(
 			__FUNCTION__,
 			'passesCSRFCheck',
@@ -214,7 +216,7 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @throws \ReflectionException
 	 * @throws \ReflectionException
 	 */
-	public function testAjaxStatusAllGood() {
+	public function testAjaxStatusAllGood(): void {
 		$this->ajaxExceptionStatus(
 			__FUNCTION__,
 			'isLoggedIn',
@@ -243,10 +245,10 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @throws SecurityException
 	 * @throws \ReflectionException
 	 */
-	public function testNoChecks() {
+	public function testNoChecks(): void {
 		$this->request->expects($this->never())
 				->method('passesCSRFCheck')
-				->will($this->returnValue(false));
+				->willReturn(false);
 
 		$sec = $this->getMiddleware(false, false);
 
@@ -261,7 +263,7 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @throws SecurityException
 	 * @throws \ReflectionException
 	 */
-	private function securityCheck($method, $expects, $shouldFail=false) {
+	private function securityCheck($method, $expects, $shouldFail=false): void {
 		// admin check requires login
 		if ($expects === 'isAdminUser') {
 			$isLoggedIn = true;
@@ -285,14 +287,15 @@ class SecurityMiddlewareTest extends TestCase {
 
 	/**
 	 * @PublicPage
-	 * @expectedException \OC\AppFramework\Middleware\Security\Exceptions\CrossSiteRequestForgeryException
 	 * @throws SecurityException
 	 * @throws \ReflectionException
 	 */
-	public function testCsrfCheck() {
+	public function testCsrfCheck(): void {
+		$this->expectException(CrossSiteRequestForgeryException::class);
+
 		$this->request->expects($this->once())
 			->method('passesCSRFCheck')
-			->will($this->returnValue(false));
+			->willReturn(false);
 
 		$this->reader->reflect(__CLASS__, __FUNCTION__);
 		$this->middleware->beforeController(__CLASS__, __FUNCTION__);
@@ -304,10 +307,10 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @throws SecurityException
 	 * @throws \ReflectionException
 	 */
-	public function testNoCsrfCheck() {
+	public function testNoCsrfCheck(): void {
 		$this->request->expects($this->never())
 			->method('passesCSRFCheck')
-			->will($this->returnValue(false));
+			->willReturn(false);
 
 		$this->reader->reflect(__CLASS__, __FUNCTION__);
 		$this->middleware->beforeController(__CLASS__, __FUNCTION__);
@@ -318,10 +321,10 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @throws SecurityException
 	 * @throws \ReflectionException
 	 */
-	public function testFailCsrfCheck() {
+	public function testFailCsrfCheck(): void {
 		$this->request->expects($this->once())
 			->method('passesCSRFCheck')
-			->will($this->returnValue(true));
+			->willReturn(true);
 
 		$this->reader->reflect(__CLASS__, __FUNCTION__);
 		$this->middleware->beforeController(__CLASS__, __FUNCTION__);
@@ -333,7 +336,7 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @throws SecurityException
 	 * @throws \ReflectionException
 	 */
-	public function testLoggedInCheck() {
+	public function testLoggedInCheck(): void {
 		$this->securityCheck(__FUNCTION__, 'isLoggedIn');
 	}
 
@@ -343,7 +346,7 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @throws SecurityException
 	 * @throws \ReflectionException
 	 */
-	public function testFailLoggedInCheck() {
+	public function testFailLoggedInCheck(): void {
 		$this->securityCheck(__FUNCTION__, 'isLoggedIn', true);
 	}
 
@@ -352,7 +355,7 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @throws SecurityException
 	 * @throws \ReflectionException
 	 */
-	public function testIsAdminCheck() {
+	public function testIsAdminCheck(): void {
 		$this->securityCheck(__FUNCTION__, 'isAdminUser');
 	}
 
@@ -361,14 +364,14 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @throws SecurityException
 	 * @throws \ReflectionException
 	 */
-	public function testFailIsAdminCheck() {
+	public function testFailIsAdminCheck(): void {
 		$this->securityCheck(__FUNCTION__, 'isAdminUser', true);
 	}
 
 	/**
 	 * @throws \Exception
 	 */
-	public function testAfterExceptionNotCaughtThrowsItAgain() {
+	public function testAfterExceptionNotCaughtThrowsItAgain(): void {
 		$ex = new \Exception();
 		$this->expectException(\Exception::class);
 		$this->middleware->afterException($this->controller, 'test', $ex);
@@ -377,7 +380,7 @@ class SecurityMiddlewareTest extends TestCase {
 	/**
 	 * @throws \Exception
 	 */
-	public function testAfterExceptionReturnsRedirectForNotLoggedInUser() {
+	public function testAfterExceptionReturnsRedirectForNotLoggedInUser(): void {
 		$this->request = new Request(
 				[
 						'server' =>
@@ -399,7 +402,7 @@ class SecurityMiddlewareTest extends TestCase {
 						'redirect_url' => 'owncloud%2Findex.php%2Fapps%2Fspecialapp',
 					]
 				)
-				->will($this->returnValue('http://localhost/index.php/login?redirect_url=owncloud%2Findex.php%2Fapps%2Fspecialapp'));
+				->willReturn('http://localhost/index.php/login?redirect_url=owncloud%2Findex.php%2Fapps%2Fspecialapp');
 		$this->logger
 				->expects($this->once())
 				->method('debug')
@@ -417,7 +420,7 @@ class SecurityMiddlewareTest extends TestCase {
 	/**
 	 * @return array
 	 */
-	public function exceptionProvider() {
+	public function exceptionProvider(): array {
 		return [
 			[
 				new AppNotEnabledException(),
@@ -436,7 +439,7 @@ class SecurityMiddlewareTest extends TestCase {
 	 * @param SecurityException $exception
 	 * @throws \Exception
 	 */
-	public function testAfterExceptionReturnsTemplateResponse(SecurityException $exception) {
+	public function testAfterExceptionReturnsTemplateResponse(SecurityException $exception): void {
 		$this->request = new Request(
 				[
 						'server' =>
@@ -471,7 +474,7 @@ class SecurityMiddlewareTest extends TestCase {
 	 *
 	 * @throws \Exception
 	 */
-	public function testAfterExceptionReturnsLoginPageForAnyContentType() {
+	public function testAfterExceptionReturnsLoginPageForAnyContentType(): void {
 		$this->request = new Request(
 			[
 				'server' =>
@@ -485,10 +488,6 @@ class SecurityMiddlewareTest extends TestCase {
 		);
 
 		$exception = new NotLoggedInException();
-		$sessionMock = $this->getMockBuilder(ISession::class)
-			->disableOriginalConstructor()
-			->getMock();
-
 		$this->controller = $this->getMockBuilder(LoginController::class)
 			->disableOriginalConstructor()
 			->getMock();
@@ -512,7 +511,7 @@ class SecurityMiddlewareTest extends TestCase {
 	/**
 	 * @throws \Exception
 	 */
-	public function testAfterExceptionReturnsLoginPageForCsrfErrorOnLogin() {
+	public function testAfterExceptionReturnsLoginPageForCsrfErrorOnLogin(): void {
 		$this->request = new Request(
 			[
 				'server' =>
@@ -549,7 +548,7 @@ class SecurityMiddlewareTest extends TestCase {
 			->method('getSession')
 			->willReturn($sessionMock);
 
-		$response = $this->middleware->afterException(
+		$this->middleware->afterException(
 			$this->controller,
 			'tryLogin',
 			$exception
@@ -559,15 +558,55 @@ class SecurityMiddlewareTest extends TestCase {
 	/**
 	 * @throws \Exception
 	 */
-	public function testAfterAjaxExceptionReturnsJSONError() {
+	public function testAfterAjaxExceptionReturnsJSONError(): void {
 		$response = $this->middleware->afterException($this->controller, 'test',
 				$this->secAjaxException);
 
 		$this->assertInstanceOf(JSONResponse::class, $response);
 	}
 
-	public function testAfterController() {
-		/** @var Response | \PHPUnit\Framework\MockObject\MockObject $response */
+	public function testAfterExceptionForNonAdminAccess(): void {
+		$nonAdminException = new NotAdminException();
+		$expectedResponse = $this->createMock(Response::class);
+		$controller = $this->createMock(OCSController::class);
+		$controller->expects($this->once())
+			->method('buildResponse')
+			->willReturn($expectedResponse);
+		$response = $this->middleware->afterException($controller, 'test', $nonAdminException);
+		$this->assertSame($expectedResponse, $response);
+	}
+
+	/**
+	 * @NoCSRFRequired
+	 */
+	public function testBeforeOCSController(): void {
+		$this->expectException(NotLoggedInException::class);
+		$controller = $this->createMock(OCSController::class);
+		$controller->expects($this->never())->method('buildResponse');
+
+		// this header needs to be verified
+		$this->request->expects(self::once())->method('getHeader')->with('OCS-APIREQUEST');
+
+		$this->reader->reflect(__CLASS__, __FUNCTION__);
+		$this->middleware->beforeController($controller, 'test');
+	}
+
+	/**
+	 * @NoCSRFRequired
+	 */
+	public function testBeforeOCSControllerWithHeader(): void {
+		$controller = $this->createMock(OCSController::class);
+		$controller->expects($this->never())->method('buildResponse');
+
+		// this header needs to be verified
+		$this->request->expects(self::once())->method('getHeader')->with('OCS-APIREQUEST')->willReturn(true);
+
+		$this->reader->reflect(__CLASS__, __FUNCTION__);
+		$this->middleware->beforeController($controller, 'test');
+	}
+
+	public function testAfterController(): void {
+		/** @var Response | MockObject $response */
 		$response = $this->getMockBuilder(Response::class)->disableOriginalConstructor()->getMock();
 		$defaultPolicy = new ContentSecurityPolicy();
 		$defaultPolicy->addAllowedImageDomain('defaultpolicy');

@@ -64,7 +64,6 @@ class WebUIGeneralContext extends RawMinkContext implements Context {
 
 	private $oldCSRFSetting = null;
 	private $oldPreviewSetting = [];
-	private $createdFiles = [];
 
 	/**
 	 *
@@ -90,12 +89,12 @@ class WebUIGeneralContext extends RawMinkContext implements Context {
 	 * @var string the original capabilities in XML format
 	 */
 	private $savedCapabilitiesXml;
-	
+
 	/**
 	 * @var array the changes made to capabilities for the test scenario
 	 */
 	private $savedCapabilitiesChanges = [];
-	
+
 	/**
 	 * table of capabilities to map the human readable terms from the settings page
 	 * to terms in the capabilities XML and testing app
@@ -333,6 +332,7 @@ class WebUIGeneralContext extends RawMinkContext implements Context {
 	public function notificationsShouldBeDisplayedOnTheWebUIWithTheText(
 		$matching, TableNode $table
 	) {
+		$this->featureContext->verifyTableNodeColumnsCount($table, 1);
 		$actualNotifications = $this->owncloudPage->getNotifications();
 		$numActualNotifications = \count($actualNotifications);
 		$expectedNotifications = $table->getRows();
@@ -396,6 +396,7 @@ class WebUIGeneralContext extends RawMinkContext implements Context {
 			Assert::assertEquals($count, \count($dialogs));
 		}
 		if ($table !== null) {
+			$this->featureContext->verifyTableNodeColumns($table, ['title', 'content']);
 			$expectedDialogs = $table->getHash();
 			//we iterate first through the real dialogs because that way we can
 			//save time by calling getMessage() & getTitle() only once
@@ -458,7 +459,7 @@ class WebUIGeneralContext extends RawMinkContext implements Context {
 			$title, $this->generalErrorPage->getPageTitle()
 		);
 	}
-	
+
 	/**
 	 * @Then an error should be displayed on the general error webUI page saying :error
 	 *
@@ -553,7 +554,7 @@ class WebUIGeneralContext extends RawMinkContext implements Context {
 				"$value can only be 'disabled' or 'enabled'"
 			);
 		}
-		
+
 		$capability = $this->capabilities[\strtolower($section)][$setting];
 		$change = AppConfigHelper::setCapability(
 			$this->featureContext->getBaseUrl(),
@@ -567,26 +568,6 @@ class WebUIGeneralContext extends RawMinkContext implements Context {
 			$this->getSavedCapabilitiesXml()[$this->featureContext->getBaseUrl()]
 		);
 		$this->addToSavedCapabilitiesChanges($change);
-	}
-
-	/**
-	 * @Given a file with the size of :size bytes and the name :name has been created locally
-	 *
-	 * @param int $size if not int given it will be cast to int
-	 * @param string $name
-	 *
-	 * @throws InvalidArgumentException
-	 * @return void
-	 */
-	public function aFileWithSizeAndNameHasBeenCreatedLocally($size, $name) {
-		$fullPath = \getenv("FILES_FOR_UPLOAD") . $name;
-		if (\file_exists($fullPath)) {
-			throw new InvalidArgumentException(
-				__METHOD__ . " could not create '$fullPath' file exists"
-			);
-		}
-		UploadHelper::createFileSpecificSize($fullPath, (int)$size);
-		$this->createdFiles[] = $fullPath;
 	}
 
 	/**
@@ -664,7 +645,7 @@ class WebUIGeneralContext extends RawMinkContext implements Context {
 			$this->featureContext->getBaseUrl(),
 			$this->featureContext->getOcPath()
 		);
-		
+
 		$response = AppConfigHelper::getCapabilities(
 			$this->featureContext->getBaseUrl(),
 			$this->featureContext->getAdminUsername(),
@@ -679,23 +660,23 @@ class WebUIGeneralContext extends RawMinkContext implements Context {
 			= $capabilitiesXml;
 
 		if ($this->oldCSRFSetting === null) {
-			$oldCSRFSetting = $this->featureContext->getSystemConfigValue(
+			$oldCSRFSetting = SetupHelper::getSystemConfigValue(
 				'csrf.disabled'
 			);
 			$this->oldCSRFSetting = \trim($oldCSRFSetting);
 		}
-		$this->featureContext->setSystemConfig(
+		SetupHelper::setSystemConfig(
 			'csrf.disabled',
 			'true',
 			'boolean'
 		);
 
 		//TODO make it smarter to be able also to work with other backends
-		if (\getenv("TEST_EXTERNAL_USER_BACKENDS") === "true") {
+		if ($this->featureContext->isTestingWithLdap()) {
 			$result = SetupHelper::runOcc(
 				["user:sync", "OCA\User_LDAP\User_Proxy", "-m remove"]
 			);
-			if ((int)$result['code'] !== 0) {
+			if ((int) $result['code'] !== 0) {
 				throw new Exception(
 					"could not sync users with LDAP. stdOut:\n" .
 					"{$result['stdOut']}\n" .
@@ -718,12 +699,12 @@ class WebUIGeneralContext extends RawMinkContext implements Context {
 		$this->featureContext->runFunctionOnEveryServer(
 			function ($server) {
 				if (!isset($this->oldPreviewSetting[$server])) {
-					$oldPreviewSetting = $this->featureContext->getSystemConfigValue(
+					$oldPreviewSetting = SetupHelper::getSystemConfigValue(
 						'enable_previews'
 					);
 					$this->oldPreviewSetting[$server] = \trim($oldPreviewSetting);
 				}
-				$this->featureContext->setSystemConfig(
+				SetupHelper::setSystemConfig(
 					'enable_previews', 'false', 'boolean'
 				);
 			}
@@ -746,12 +727,12 @@ class WebUIGeneralContext extends RawMinkContext implements Context {
 		$this->featureContext->runFunctionOnEveryServer(
 			function ($server) {
 				if (!isset($this->oldPreviewSetting[$server])) {
-					$oldPreviewSetting = $this->featureContext->getSystemConfigValue(
+					$oldPreviewSetting = SetupHelper::getSystemConfigValue(
 						'enable_previews'
 					);
 					$this->oldPreviewSetting[$server] = \trim($oldPreviewSetting);
 				}
-				$this->featureContext->setSystemConfig(
+				SetupHelper::setSystemConfig(
 					'enable_previews', 'true', 'boolean'
 				);
 			}
@@ -789,25 +770,21 @@ class WebUIGeneralContext extends RawMinkContext implements Context {
 				if (isset($this->oldPreviewSetting[$server])
 					&& $this->oldPreviewSetting[$server] === ""
 				) {
-					$this->featureContext->deleteSystemConfig('enable_previews');
+					SetupHelper::deleteSystemConfig('enable_previews');
 				} elseif (isset($this->oldPreviewSetting[$server])) {
-					$this->featureContext->setSystemConfig(
+					SetupHelper::setSystemConfig(
 						'enable_previews', $this->oldPreviewSetting[$server], 'boolean'
 					);
 				}
 			}
 		);
-		
+
 		if ($this->oldCSRFSetting === "") {
-			$this->featureContext->deleteSystemConfig('csrf.disabled');
+			SetupHelper::deleteSystemConfig('csrf.disabled');
 		} elseif ($this->oldCSRFSetting !== null) {
-			$this->featureContext->setSystemConfig(
+			SetupHelper::setSystemConfig(
 				'csrf.disabled', $this->oldCSRFSetting, 'boolean'
 			);
-		}
-		
-		foreach ($this->createdFiles as $file) {
-			\unlink($file);
 		}
 	}
 

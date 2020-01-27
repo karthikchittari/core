@@ -40,6 +40,7 @@ use SensioLabs\Behat\PageObjectExtension\PageObject\Exception\ElementNotFoundExc
 use TestHelpers\DeleteHelper;
 use TestHelpers\Asserts\WebDav as WebDavAssert;
 use TestHelpers\HttpRequestHelper;
+use TestHelpers\UploadHelper;
 
 require_once 'bootstrap.php';
 
@@ -543,7 +544,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user creates a folder with the following name using the webUI
-	 * @Given the user has created a folder with the following name using the webUI
 	 *
 	 * @param TableNode $namePartsTable table of parts of the file name
 	 *                                  table headings: must be: |name-parts |
@@ -626,7 +626,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user renames file/folder :fromName to :toName using the webUI
-	 * @Given the user has renamed file/folder :fromName to :toName using the webUI
 	 *
 	 * @param string $fromName
 	 * @param string $toName
@@ -644,7 +643,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user renames the following file/folder using the webUI
-	 * @Given the user has renamed the following file/folder using the webUI
 	 *
 	 * @param TableNode $namePartsTable table of parts of the from and to file names
 	 *                                  table headings: must be:
@@ -658,6 +656,7 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	) {
 		$fromNameParts = [];
 		$toNameParts = [];
+		$this->featureContext->verifyTableNodeColumns($namePartsTable, ['from-name-parts', 'to-name-parts']);
 
 		foreach ($namePartsTable as $namePartsRow) {
 			$fromNameParts[] = $namePartsRow['from-name-parts'];
@@ -674,7 +673,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user renames file/folder :fromName to one of these names using the webUI
-	 * @Given the user has renamed file/folder :fromName to one of these names using the webUI
 	 *
 	 * @param string $fromName
 	 * @param TableNode $table
@@ -685,6 +683,7 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	public function theUserRenamesFileToOneOfTheseNamesUsingTheWebUI(
 		$fromName, TableNode $table
 	) {
+		$this->featureContext->verifyTableNodeColumnsCount($table, 1);
 		$pageObject = $this->getCurrentPageObject();
 		$pageObject->waitTillPageIsLoaded($this->getSession());
 		foreach ($table->getRows() as $row) {
@@ -723,7 +722,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	 * like delete.
 	 *
 	 * @When the user deletes/unshares file/folder :name using the webUI
-	 * @Given the user has deleted/unshared file/folder :name using the webUI
 	 *
 	 * @param string $name
 	 *
@@ -736,7 +734,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user deletes the following file/folder using the webUI
-	 * @Given the user has deleted the following file/folder using the webUI
 	 *
 	 * @param TableNode $namePartsTable table of parts of the file name
 	 *                                  table headings: must be: |name-parts |
@@ -749,6 +746,7 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	) {
 		$fileNameParts = [];
 
+		$this->featureContext->verifyTableNodeColumns($namePartsTable, ['name-parts']);
 		foreach ($namePartsTable as $namePartsRow) {
 			$fileNameParts[] = $namePartsRow['name-parts'];
 		}
@@ -766,6 +764,7 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	 * @throws \Exception
 	 */
 	public function theFollowingFilesFoldersHaveBeenDeleted(TableNode $filesTable) {
+		$this->featureContext->verifyTableNodeColumns($filesTable, ['name']);
 		foreach ($filesTable as $file) {
 			$username = $this->featureContext->getCurrentUser();
 			$currentTime = \microtime(true);
@@ -785,7 +784,7 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 					break;
 				} elseif ($response->getStatusCode() === 423) {
 					$message = "INFORMATION: file '" . $file['name'] .
-					"' is locked";
+						"' is locked";
 					\error_log($message);
 				} else {
 					throw new \Exception(
@@ -808,7 +807,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user deletes the following elements using the webUI
-	 * @Given the user has deleted the following elements using the webUI
 	 *
 	 * @param TableNode $table table of file names
 	 *                         table headings: must be: |name|
@@ -819,6 +817,7 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	public function theUserDeletesTheFollowingElementsUsingTheWebUI(
 		TableNode $table
 	) {
+		$this->featureContext->verifyTableNodeColumns($table, ['name']);
 		$this->deletedElementsTable = $table;
 		foreach ($this->deletedElementsTable as $file) {
 			$this->deleteTheFileUsingTheWebUI($file['name']);
@@ -827,7 +826,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user moves file/folder :name into folder :destination using the webUI
-	 * @Given the user has moved file/folder :name into folder :destination using the webUI
 	 *
 	 * @param string|array $name
 	 * @param string|array $destination
@@ -841,13 +839,13 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user moves the following file/folder using the webUI
-	 * @Given the user has moved the following file/folder using the webUI
 	 *
 	 * @param TableNode $namePartsTable table of parts of the from and to file names
 	 *                                  table headings: must be:
 	 *                                  |item-to-move-name-parts |destination-name-parts |
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theUserMovesTheFollowingFileFolderUsingTheWebUI(
 		TableNode $namePartsTable
@@ -855,6 +853,10 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 		$itemToMoveNameParts = [];
 		$destinationNameParts = [];
 
+		$this->featureContext->verifyTableNodeColumns(
+			$namePartsTable,
+			['item-to-move-name-parts', 'destination-name-parts']
+		);
 		foreach ($namePartsTable as $namePartsRow) {
 			$itemToMoveNameParts[] = $namePartsRow['item-to-move-name-parts'];
 			$destinationNameParts[] = $namePartsRow['destination-name-parts'];
@@ -866,7 +868,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user batch moves these files/folders into folder :folderName using the webUI
-	 * @Given the user has batch moved these files/folders into folder :folderName using the webUI
 	 *
 	 * @param string $folderName
 	 * @param TableNode $files table of file names
@@ -878,6 +879,7 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	public function theUserBatchMovesTheseFilesIntoFolderUsingTheWebUI(
 		$folderName, TableNode $files
 	) {
+		$this->featureContext->verifyTableNodeColumns($files, ['name']);
 		$this->theUserMarksTheseFilesForBatchActionUsingTheWebUI($files);
 		$firstFileName = $files->getRow(1)[0];
 		$this->theUserMovesFileFolderIntoFolderUsingTheWebUI(
@@ -888,7 +890,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user uploads overwriting file :name using the webUI
-	 * @Given the user has uploaded overwriting file :name using the webUI
 	 *
 	 * @param string $name
 	 *
@@ -903,7 +904,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user uploads overwriting file :name using the webUI and retries if the file is locked
-	 * @Given the user has uploaded overwriting file :name using the webUI and retries if the file is locked
 	 *
 	 * @param string $name
 	 *
@@ -929,9 +929,9 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 			if ($currentNotificationsCount > $previousNotificationsCount) {
 				$message
 					= "Upload overwriting $name" .
-					  " and got $currentNotificationsCount" .
-					  " notifications including " .
-					  \end($notifications) . "\n";
+					" and got $currentNotificationsCount" .
+					" notifications including " .
+					\end($notifications) . "\n";
 				echo $message;
 				\error_log($message);
 				$previousNotificationsCount = $currentNotificationsCount;
@@ -951,7 +951,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user uploads file :name keeping both new and existing files using the webUI
-	 * @Given the user has uploaded file :name keeping both new and existing files using the webUI
 	 *
 	 * @param string $name
 	 *
@@ -967,7 +966,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user uploads file :name using the webUI
-	 * @Given the user has uploaded file :name using the webUI
 	 *
 	 * @param string $name
 	 *
@@ -978,8 +976,30 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	}
 
 	/**
+	 * @Then the following elements should be listed as uploaded items on the webUI:
+	 *
+	 * @param TableNode $table list of expected uploaded elements to be visible on the webUI
+	 * 						   the heading of the table is required to be "uploaded-elements"
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theFollowingElementsShouldBeListedAsUploadedFilesOnTheWebUI($table) {
+		$this->featureContext->verifyTableNodeColumns($table, ["uploaded-elements"]);
+		$expectedElements = [];
+		foreach ($table as $row) {
+			\array_push($expectedElements, $row["uploaded-elements"]);
+		}
+		$pageObject = $this->getCurrentPageObject();
+		$currentUploadedElements = $pageObject->getCompletelyUploadedElements();
+		Assert::assertEqualsCanonicalizing(
+			$currentUploadedElements,
+			$expectedElements
+		);
+	}
+
+	/**
 	 * @When /^the user chooses to keep the (new|existing) files in the upload dialog$/
-	 * @Given /^the user has chosen to keep the (new|existing) files in the upload dialog$/
 	 *
 	 * @param string $choice
 	 *
@@ -1019,8 +1039,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	/**
 	 * @When the user chooses :label in the upload dialog
 	 * @When I click the :label button
-	 * @Given the user has chosen :label in the upload dialog
-	 * @Given I have clicked the :label button
 	 *
 	 * @param string $label
 	 *
@@ -1096,6 +1114,7 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	 * @param string $entryName
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
 	public function theUserOpensTheSharingTabFromTheActionMenuOfFileUsingTheWebui($entryName) {
 		$this->theUserOpensTheFileActionMenuOfFileFolderOnTheWebui($entryName);
@@ -1152,7 +1171,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user batch deletes these files using the webUI
-	 * @Given the user has batch deleted these files using the webUI
 	 *
 	 * @param TableNode $files table of file names
 	 *                         table headings: must be: |name|
@@ -1168,7 +1186,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user batch deletes the marked files using the webUI
-	 * @Given the user has batch deleted the marked files using the webUI
 	 *
 	 * @return void
 	 */
@@ -1179,7 +1196,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 
 	/**
 	 * @When the user batch restores the marked files using the webUI
-	 * @Given the user has batch restored the marked files using the webUI
 	 *
 	 * @return void
 	 */
@@ -1203,6 +1219,7 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	public function theUserMarksTheseFilesForBatchActionUsingTheWebUI(
 		TableNode $files
 	) {
+		$this->featureContext->verifyTableNodeColumns($files, ['name']);
 		$pageObject = $this->getCurrentPageObject();
 		$session = $this->getSession();
 		$pageObject->waitTillPageIsLoaded($session);
@@ -1222,6 +1239,27 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	public function theUserMarksAllFilesForBatchActionUsingTheWebUI() {
 		$pageObject = $this->getCurrentPageObject();
 		$pageObject->selectAllFilesForBatchAction();
+	}
+
+	/**
+	 * @When the user opens folder with the following name using the webUI
+	 *
+	 * @param TableNode $namePartsTable table of parts of the file name
+	 *                                  table headings: must be: |name-parts |
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theUserOpensFolderWithFollowingNamePartsUsingTheWebUI($namePartsTable) {
+		$fileName = '';
+		foreach ($namePartsTable as $namePartsRow) {
+			$fileName .= $namePartsRow['name-parts'];
+		}
+		$this->theUserOpensTheFileOrFolderUsingTheWebUI(
+			null,
+			'folder',
+			$fileName
+		);
 	}
 
 	/**
@@ -1550,6 +1588,10 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	) {
 		$toBeListedTableArray[] = ["name-parts"];
 		$folderNameParts = [];
+		$this->featureContext->verifyTableNodeColumns(
+			$namePartsTable,
+			['folder-name-parts', 'item-name-parts']
+		);
 		foreach ($namePartsTable as $namePartsRow) {
 			$folderNameParts[] = $namePartsRow['folder-name-parts'];
 			$toBeListedTableArray[] = [$namePartsRow['item-name-parts']];
@@ -1583,6 +1625,7 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	) {
 		$fileNameParts = [];
 
+		$this->featureContext->verifyTableNodeColumns($namePartsTable, ['name-parts']);
 		if ($namePartsTable !== null) {
 			foreach ($namePartsTable as $namePartsRow) {
 				$fileNameParts[] = $namePartsRow['name-parts'];
@@ -1809,10 +1852,35 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 		// The capturing group of the regex always includes the quotes at each
 		// end of the captured string, so trim them.
 		$remoteFile = $this->currentFolder . "/" . \trim($remoteFile, $remoteFile[0]);
-		$localFile = \getenv("FILES_FOR_UPLOAD") . "/" . \trim($localFile, $localFile[0]);
+		$localFile = UploadHelper::getUploadFilesDir(\trim($localFile, $localFile[0]));
 		$shouldBeSame = ($shouldOrNot !== "not");
 		$this->assertContentOfRemoteAndLocalFileIsSame(
 			$remoteFile, $localFile, $shouldBeSame, $checkOnRemoteServer
+		);
+	}
+
+	/**
+	 * @Then /^the content of "([^"]*)" (on the remote server|on the local server|)\s?for user "([^"]*)" should (not|)\s?be the same as the local "([^"]*)"$/
+	 *
+	 * @param string $remoteFile enclosed in single or double quotes
+	 * @param string $remoteServer
+	 * @param string $user
+	 * @param string $shouldOrNot
+	 * @param string $localFile enclosed in single or double quotes
+	 *
+	 * @return void
+	 * @throws \Exception
+	 */
+	public function theContentOfFileForUserShouldBeTheSameAsTheLocal(
+		$remoteFile, $remoteServer, $user, $shouldOrNot, $localFile
+	) {
+		$checkOnRemoteServer = ($remoteServer === 'on the remote server');
+		// The capturing group of the regex always includes the quotes at each
+		// end of the captured string, so trim them.
+		$localFile = UploadHelper::getUploadFilesDir(\trim($localFile));
+		$shouldBeSame = ($shouldOrNot !== "not");
+		$this->assertContentOfRemoteAndLocalFileIsSameForUser(
+			$remoteFile, $localFile, $user, $shouldBeSame, $checkOnRemoteServer
 		);
 	}
 
@@ -1918,9 +1986,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	}
 
 	/**
-	 * @see WebDavAssert::assertContentOfRemoteAndLocalFileIsSame
-	 * uses the current user to download the remote file
-	 *
 	 * @param string $remoteFile
 	 * @param string $localFile
 	 * @param bool $shouldBeSame (default true) if true then check that the file contents are the same
@@ -1929,9 +1994,34 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	 *
 	 * @return void
 	 * @throws \Exception
+	 * @see WebDavAssert::assertContentOfRemoteAndLocalFileIsSame
+	 * uses the current user to download the remote file
+	 *
 	 */
 	private function assertContentOfRemoteAndLocalFileIsSame(
 		$remoteFile, $localFile, $shouldBeSame = true, $checkOnRemoteServer = false
+	) {
+		$this->assertContentOfRemoteAndLocalFileIsSameForUser(
+			$remoteFile, $localFile, $this->featureContext->getCurrentUser(), $shouldBeSame, $checkOnRemoteServer
+		);
+	}
+
+	/**
+	 * @param string $remoteFile
+	 * @param string $localFile
+	 * @param string $user
+	 * @param bool $shouldBeSame (default true) if true then check that the file contents are the same
+	 *                           otherwise check that the file contents are different
+	 * @param bool $checkOnRemoteServer if true, then use the remote server to download the file
+	 *
+	 * @return void
+	 * @throws \Exception
+	 * @see WebDavAssert::assertContentOfRemoteAndLocalFileIsSame
+	 * uses the current user to download the remote file
+	 *
+	 */
+	private function assertContentOfRemoteAndLocalFileIsSameForUser(
+		$remoteFile, $localFile, $user, $shouldBeSame = true, $checkOnRemoteServer = false
 	) {
 		if ($checkOnRemoteServer) {
 			$baseUrl = $this->featureContext->getRemoteBaseUrl();
@@ -1939,11 +2029,10 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 			$baseUrl = $this->featureContext->getLocalBaseUrl();
 		}
 
-		$username = $this->featureContext->getCurrentUser();
 		WebDavAssert::assertContentOfRemoteAndLocalFileIsSame(
 			$baseUrl,
-			$username,
-			$this->featureContext->getUserPassword($username),
+			$user,
+			$this->featureContext->getUserPassword($user),
 			$remoteFile,
 			$localFile,
 			$shouldBeSame
@@ -1951,9 +2040,6 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	}
 
 	/**
-	 * @see WebDavAssert::assertContentOfDAVFileAndSkeletonFileOnSUT
-	 * uses the current user to download the remote file
-	 *
 	 * @param string $remoteFile
 	 * @param string $fileInSkeletonFolder
 	 * @param bool $shouldBeSame (default true) if true then check that the file contents are the same
@@ -1962,6 +2048,9 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	 *
 	 * @return void
 	 * @throws \Exception
+	 * @see WebDavAssert::assertContentOfDAVFileAndSkeletonFileOnSUT
+	 * uses the current user to download the remote file
+	 *
 	 */
 	private function assertContentOfDAVFileAndSkeletonFileOnSUT(
 		$remoteFile,
@@ -2069,8 +2158,8 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 	 *
 	 * @param string $action_label
 	 *
-	 * @throws \Exception
 	 * @return void
+	 * @throws \Exception
 	 */
 	public function theUserClicksTheFileActionOnTheWebui($action_label) {
 		switch ($action_label) {
@@ -2210,5 +2299,53 @@ class WebUIFilesContext extends RawMinkContext implements Context {
 		$this->filesPage->getDetailsDialog()->restoreCurrentFileToLastVersion(
 			$this->getSession()
 		);
+	}
+
+	/**
+	 * @Then /^(user|group|public link|federated user) ((?:'[^']*')|(?:"[^"]*")) should be listed as share receiver via ((?:'[^']*')|(?:"[^"]*")) on the webUI$/
+	 *
+	 * @param string $type user|group|public link|federated user
+	 * @param string $name
+	 * @param string $item
+	 *
+	 * @return void
+	 */
+	public function userGroupShouldBeListedAsShareReceiver($type, $name, $item) {
+		// The capturing group of the regex always includes the quotes at each
+		// end of the captured string, so trim them.
+		$name = $this->featureContext->substituteInLineCodes($name);
+		$name = \trim($name, $name[0]);
+		$item = \trim($item, $item[0]);
+
+		$sharingDialog = $this->filesPage->getSharingDialog();
+		$shareTreeItem = $sharingDialog->getShareTreeItem($type, $name, $item);
+		Assert::assertTrue($shareTreeItem->isVisible());
+	}
+
+	/**
+	 * @Then public link with last share token should be listed as share receiver via :item on the webUI
+	 *
+	 * @param string $item
+	 *
+	 * @return void
+	 */
+	public function publicLinkWithLastShareTokenShouldBeListedAsShareReceiverViaOnTheWebUI($item) {
+		$token = $this->featureContext->getLastShareData()->data->token;
+		$sharingDialog = $this->filesPage->getSharingDialog();
+		$shareTreeItem = $sharingDialog->getShareTreeItem("public link", $token, $item);
+		Assert::assertTrue($shareTreeItem->isVisible());
+	}
+
+	/**
+	 * @Then the user should not have permission to upload or create files
+	 *
+	 * @return void
+	 */
+	public function assertUploadCreatePermissionIsDenied() {
+		$msg = $this->filesPage->getUploadCreatePermissionDeniedMessage();
+		$expectedMsg = "You don’t have permission to upload or create files here";
+		Assert::assertEquals($expectedMsg, $msg, "Expected $expectedMsg but got $msg");
+		$isIconVisible = $this->filesPage->isNewFileIconVisible();
+		Assert::assertFalse($isIconVisible);
 	}
 }

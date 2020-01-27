@@ -53,7 +53,7 @@ class PublicWebDavContext implements Context {
 	 *
 	 * @return void
 	 */
-	public function downloadPublicFileWithRange($range, $publicWebDAVAPIVersion, $password ="") {
+	public function downloadPublicFileWithRange($range, $publicWebDAVAPIVersion, $password = "") {
 		if ($publicWebDAVAPIVersion === "new") {
 			$path = $this->featureContext->getLastShareData()->data->file_target;
 		} else {
@@ -117,7 +117,7 @@ class PublicWebDavContext implements Context {
 	 * @return void
 	 */
 	public function deleteFileFromPublicShare($fileName, $publicWebDAVAPIVersion, $password = "") {
-		$token = (string)$this->featureContext->getLastShareData()->data->token;
+		$token = (string) $this->featureContext->getLastShareData()->data->token;
 		$davPath = WebDavHelper::getDavPath(
 			$token, 0, "public-files-$publicWebDAVAPIVersion"
 		);
@@ -246,7 +246,7 @@ class PublicWebDavContext implements Context {
 	 * @return void
 	 */
 	public function publicDownloadsTheFileInsideThePublicSharedFolderWithPasswordAndRange(
-		$path, $password, $range, $publicWebDAVAPIVersion="old"
+		$path, $password, $range, $publicWebDAVAPIVersion = "old"
 	) {
 		$path = \ltrim($path, "/");
 		$password = $this->featureContext->getActualPassword($password);
@@ -272,9 +272,6 @@ class PublicWebDavContext implements Context {
 	}
 
 	/**
-	 * @When the public uploads file :filename using the :publicWebDAVAPIVersion WebDAV API
-	 * @Given the public has uploaded file :filename
-	 *
 	 * @param string $source target file name
 	 * @param string $publicWebDAVAPIVersion
 	 *
@@ -289,10 +286,62 @@ class PublicWebDavContext implements Context {
 	}
 
 	/**
+	 * @When the public uploads file :filename using the :publicWebDAVAPIVersion WebDAV API
+	 *
+	 * @param string $source target file name
+	 * @param string $publicWebDAVAPIVersion
+	 *
+	 * @return void
+	 */
+	public function thePublicUploadsFileUsingTheWebDAVApi($source, $publicWebDAVAPIVersion) {
+		$this->publiclyUploadingFile(
+			$source,
+			$publicWebDAVAPIVersion
+		);
+	}
+
+	/**
+	 * @Given the public has uploaded file :filename
+	 *
+	 * @param string $source target file name
+	 * @param string $publicWebDAVAPIVersion
+	 *
+	 * @return void
+	 */
+	public function thePublicHasUploadedFileUsingTheWebDAVApi($source, $publicWebDAVAPIVersion) {
+		$this->publiclyUploadingFile(
+			$source,
+			$publicWebDAVAPIVersion
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
 	 * This only works with the old API, autorename is not supported in the new API
 	 * auto renaming is handled on files drop folders implicitly
 	 *
+	 * @param string $filename target file name
+	 * @param string $body content to upload
+	 *
+	 * @return void
+	 */
+	public function publiclyUploadingContentAutoRename($filename, $body = 'test') {
+		$this->publicUploadContent($filename, '', $body, true);
+	}
+
+	/**
 	 * @When the public uploads file :filename with content :body with autorename mode using the old public WebDAV API
+	 *
+	 * @param string $filename target file name
+	 * @param string $body content to upload
+	 *
+	 * @return void
+	 */
+	public function thePublicUploadsFileWithContentWithAutoRenameMode($filename, $body = 'test') {
+		$this->publiclyUploadingContentAutoRename($filename, $body);
+	}
+
+	/**
 	 * @Given the public has uploaded file :filename with content :body with autorename mode
 	 *
 	 * @param string $filename target file name
@@ -300,12 +349,49 @@ class PublicWebDavContext implements Context {
 	 *
 	 * @return void
 	 */
-	public function publiclyUploadingContentAutorename($filename, $body = 'test') {
-		$this->publicUploadContent($filename, '', $body, true);
+	public function thePublicHasUploadedFileWithContentWithAutoRenameMode($filename, $body = 'test') {
+		$this->publiclyUploadingContentAutoRename($filename, $body);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
+	 * @param string $filename target file name
+	 * @param string $password
+	 * @param string $body content to upload
+	 * @param string $publicWebDAVAPIVersion
+	 *
+	 * @return void
+	 */
+	public function publiclyUploadingContentWithPassword(
+		$filename, $password = '', $body = 'test', $publicWebDAVAPIVersion = "old"
+	) {
+		$this->publicUploadContent(
+			$filename, $password, $body, false, [], $publicWebDAVAPIVersion
+		);
 	}
 
 	/**
 	 * @When /^the public uploads file "([^"]*)" with password "([^"]*)" and content "([^"]*)" using the (old|new) public WebDAV API$/
+	 *
+	 * @param string $filename target file name
+	 * @param string $password
+	 * @param string $body content to upload
+	 * @param string $publicWebDAVAPIVersion
+	 *
+	 * @return void
+	 */
+	public function thePublicUploadsFileWithPasswordAndContentUsingPublicWebDAVApi(
+		$filename, $password = '', $body = 'test', $publicWebDAVAPIVersion = "old"
+	) {
+		$this->publiclyUploadingContentWithPassword(
+			$filename,
+			$password,
+			$body,
+			$publicWebDAVAPIVersion
+		);
+	}
+
+	/**
 	 * @Given the public has uploaded file :filename" with password :password and content :body
 	 *
 	 * @param string $filename target file name
@@ -315,18 +401,19 @@ class PublicWebDavContext implements Context {
 	 *
 	 * @return void
 	 */
-	public function publiclyUploadingContentWithPassword(
-		$filename, $password = '', $body = 'test', $publicWebDAVAPIVersion="old"
+	public function thePublicHasUploadedFileWithPasswordAndContentUsingPublicWebDAVApi(
+		$filename, $password = '', $body = 'test', $publicWebDAVAPIVersion = "old"
 	) {
-		$this->publicUploadContent(
-			$filename, $password, $body, false, [], $publicWebDAVAPIVersion
+		$this->publiclyUploadingContentWithPassword(
+			$filename,
+			$password,
+			$body,
+			$publicWebDAVAPIVersion
 		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
 	}
 
 	/**
-	 * @When the public overwrites file :filename with content :body using the old WebDAV API
-	 * @Given the public has overwritten file :filename with content :body
-	 *
 	 * @param string $filename target file name
 	 * @param string $body content to upload
 	 *
@@ -337,7 +424,71 @@ class PublicWebDavContext implements Context {
 	}
 
 	/**
+	 * @When the public overwrites file :filename with content :body using the old WebDAV API
+	 *
+	 * @param string $filename target file name
+	 * @param string $body content to upload
+	 *
+	 * @return void
+	 */
+	public function thePublicOverwritesFileWithContentUsingOldWebDavApi($filename, $body = 'test') {
+		$this->publiclyOverwritingContent(
+			$filename,
+			$body
+		);
+	}
+
+	/**
+	 * @Given the public has overwritten file :filename with content :body
+	 *
+	 * @param string $filename target file name
+	 * @param string $body content to upload
+	 *
+	 * @return void
+	 */
+	public function thePublicHasOverwrittenFileWithContentUsingOldWebDavApi($filename, $body = 'test') {
+		$this->publiclyOverwritingContent(
+			$filename,
+			$body
+		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
+	}
+
+	/**
+	 * @param string $filename target file name
+	 * @param string $body content to upload
+	 * @param string $publicWebDAVAPIVersion
+	 *
+	 * @return void
+	 */
+	public function publiclyUploadingContent(
+		$filename, $body = 'test', $publicWebDAVAPIVersion = "old"
+	) {
+		$this->publicUploadContent(
+			$filename, '', $body, false, [], $publicWebDAVAPIVersion
+		);
+	}
+
+	/**
 	 * @When /^the public uploads file "([^"]*)" with content "([^"]*)" using the (old|new) public WebDAV API$/
+	 *
+	 * @param string $filename target file name
+	 * @param string $body content to upload
+	 * @param string $publicWebDAVAPIVersion
+	 *
+	 * @return void
+	 */
+	public function thePublicUploadsFileWithCOntentUsingThePublicWebDavApi(
+		$filename, $body = 'test', $publicWebDAVAPIVersion = "old"
+	) {
+		$this->publiclyUploadingContent(
+			$filename,
+			$body,
+			$publicWebDAVAPIVersion
+		);
+	}
+
+	/**
 	 * @Given the public has uploaded file :filename with content :body
 	 *
 	 * @param string $filename target file name
@@ -346,12 +497,15 @@ class PublicWebDavContext implements Context {
 	 *
 	 * @return void
 	 */
-	public function publiclyUploadingContent(
-		$filename, $body = 'test', $publicWebDAVAPIVersion="old"
+	public function thePublicHasUploadedFileWithCOntentUsingThePublicWebDavApi(
+		$filename, $body = 'test', $publicWebDAVAPIVersion = "old"
 	) {
-		$this->publicUploadContent(
-			$filename, '', $body, false, [], $publicWebDAVAPIVersion
+		$this->publiclyUploadingContent(
+			$filename,
+			$body,
+			$publicWebDAVAPIVersion
 		);
+		$this->featureContext->theHTTPStatusCodeShouldBeSuccess();
 	}
 
 	/**
@@ -743,7 +897,7 @@ class PublicWebDavContext implements Context {
 		$publicWebDAVAPIVersion = "old"
 	) {
 		$password = $this->featureContext->getActualPassword($password);
-		$token =  $this->featureContext->getLastShareToken();
+		$token = $this->featureContext->getLastShareToken();
 		$davPath = WebDavHelper::getDavPath(
 			$token, 0, "public-files-$publicWebDAVAPIVersion"
 		);
@@ -779,10 +933,10 @@ class PublicWebDavContext implements Context {
 		$token, $password, $publicWebDAVAPIVersion
 	) {
 		if ($publicWebDAVAPIVersion === "old") {
-			$userName =  $token;
+			$userName = $token;
 		} else {
 			if ($password !== '') {
-				$userName =  'public';
+				$userName = 'public';
 			} else {
 				$userName = null;
 			}

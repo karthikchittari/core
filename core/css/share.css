@@ -22,7 +22,6 @@
 		left: 20px;
 	}
 }
-
 .shareTabView .unshare.icon-loading-small {
 	margin-top: 1px;
 }
@@ -102,7 +101,6 @@
 	line-height: 21px;
 	white-space: normal;
 }
-
 #shareWithList .shareOption {
 	white-space: nowrap;
 	display: inline-block;
@@ -142,13 +140,30 @@
 	margin: 0 3px 0 8px;
 	vertical-align: middle;
 }
-
 a.showCruds {
 	display: inline;
 	opacity: 0.5;
 }
 
 a.unshare {
+	display: inline;
+	float: right;
+	opacity: 0.5;
+	padding: 10px;
+	margin-top: -5px;
+	margin-right: -10px;
+}
+
+a.time {
+	display: inline;
+	float: right;
+	opacity: 0.5;
+	padding: 10px;
+	margin-top: -5px;
+	margin-right: -10px;
+}
+
+a.toggleShareDetails {
 	display: inline;
 	float: right;
 	opacity: 0.5;
@@ -198,6 +213,9 @@ a.unshare {
 
 a.showCruds:hover,
 a.unshare:hover {
+	opacity: 1;
+}
+a.toggleShareDetails:hover {
 	opacity: 1;
 }
 #defaultExpireMessage,

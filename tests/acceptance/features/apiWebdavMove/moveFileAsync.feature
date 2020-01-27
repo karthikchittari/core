@@ -15,8 +15,8 @@ Feature: move (rename) file
     And the following headers should match these regular expressions
       | OC-JobStatus-Location | /%base_path%\/remote\.php\/dav\/job-status\/user0\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/ |
     And the oc job status values of last request for user "user0" should match these regular expressions
-      | status | /^finished$/       |
-      | fileId | /^[0-9a-z]{20,}$/  |
+      | status | /^finished$/         |
+      | fileId | /^[0-9a-z]{20,}$/    |
       | ETag   | /^"[0-9a-f]{1,32}"$/ |
     And the downloaded content when downloading file "/FOLDER/<destination-file-name>" for user "user0" with range "bytes=0-6" should be "Welcome"
     And user "user0" should not see the following elements
@@ -35,8 +35,8 @@ Feature: move (rename) file
     And the following headers should match these regular expressions
       | OC-JobStatus-Location | /%base_path%\/remote\.php\/dav\/job-status\/user0\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/ |
     And the oc job status values of last request for user "user0" should match these regular expressions
-      | status | /^finished$/       |
-      | fileId | /^[0-9a-z]{20,}$/  |
+      | status | /^finished$/         |
+      | fileId | /^[0-9a-z]{20,}$/    |
       | ETag   | /^"[0-9a-f]{1,32}"$/ |
     And the downloaded content when downloading file "/textfile0.txt" for user "user0" with range "bytes=0-6" should be "Welcome"
     And user "user0" should not see the following elements
@@ -48,8 +48,8 @@ Feature: move (rename) file
     And the following headers should match these regular expressions
       | OC-JobStatus-Location | /%base_path%\/remote\.php\/dav\/job-status\/user0\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/ |
     And the oc job status values of last request for user "user0" should match these regular expressions
-      | status | /^finished$/       |
-      | fileId | /^[0-9a-z]{20,}$/  |
+      | status | /^finished$/         |
+      | fileId | /^[0-9a-z]{20,}$/    |
       | ETag   | /^"[0-9a-f]{1,32}"$/ |
     And the content of file "/TextFile0.txt" for user "user0" should be "ownCloud test text file 0" plus end-of-line
     And user "user0" should not see the following elements
@@ -61,8 +61,8 @@ Feature: move (rename) file
     And the following headers should match these regular expressions
       | OC-JobStatus-Location | /%base_path%\/remote\.php\/dav\/job-status\/user0\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/ |
     And the oc job status values of last request for user "user0" should match these regular expressions
-      | status | /^finished$/       |
-      | fileId | /^[0-9a-z]{20,}$/  |
+      | status | /^finished$/         |
+      | fileId | /^[0-9a-z]{20,}$/    |
       | ETag   | /^"[0-9a-f]{1,32}"$/ |
     And the content of file "/textfile0.txt" for user "user0" should be "ownCloud test text file 0" plus end-of-line
     And the content of file "/TextFile0.txt" for user "user0" should be "ownCloud test text file 1" plus end-of-line
@@ -75,8 +75,8 @@ Feature: move (rename) file
     And the following headers should match these regular expressions
       | OC-JobStatus-Location | /%base_path%\/remote\.php\/dav\/job-status\/user0\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/ |
     And the oc job status values of last request for user "user0" should match these regular expressions
-      | status | /^finished$/       |
-      | fileId | /^[0-9a-z]{20,}$/  |
+      | status | /^finished$/         |
+      | fileId | /^[0-9a-z]{20,}$/    |
       | ETag   | /^"[0-9a-f]{1,32}"$/ |
     And the content of file "/PARENT/parent.txt" for user "user0" should be "ownCloud test text file parent" plus end-of-line
     And the content of file "/PARENT/Parent.txt" for user "user0" should be "ownCloud test text file 1" plus end-of-line
@@ -137,11 +137,90 @@ Feature: move (rename) file
     And user "user0" should see the following elements
       | /welcome.txt |
 
-  Scenario: rename a file into a banned filename
+  Scenario: rename a file to a filename that is banned by default
     When user "user0" moves file "/welcome.txt" asynchronously to "/.htaccess" using the WebDAV API
     Then the HTTP status code should be "403"
     And user "user0" should see the following elements
       | /welcome.txt |
+
+  Scenario: rename a file to a banned filename
+    When the administrator updates system config key "blacklisted_files" with value '["blacklisted-file.txt",".htaccess"]' and type "json" using the occ command
+    And user "user0" moves file "/welcome.txt" asynchronously to "/blacklisted-file.txt" using the WebDAV API
+    Then the HTTP status code should be "403"
+    And user "user0" should see the following elements
+      | /welcome.txt |
+
+  @skipOnOcV10.3
+  Scenario: rename a file to a filename that matches (or not) blacklisted_files_regex
+    # Note: we have to write JSON for the value, and to get a backslash in the double-quotes we have to escape it
+    # The actual regular expressions end up being .*\.ext$ and ^bannedfilename\..+
+    Given the administrator has updated system config key "blacklisted_files_regex" with value '[".*\\.ext$","^bannedfilename\\..+","containsbannedstring"]' and type "json"
+    When user "user0" moves file "/welcome.txt" asynchronously to these filenames using the webDAV API then the results should be as listed
+      | filename                               | http-code | exists |
+      | .ext                                   | 403       | no     |
+      | filename.ext                           | 403       | no     |
+      | bannedfilename.txt                     | 403       | no     |
+      | containsbannedstring                   | 403       | no     |
+      | this-ContainsBannedString.txt          | 403       | no     |
+      | /FOLDER/.ext                           | 403       | no     |
+      | /FOLDER/filename.ext                   | 403       | no     |
+      | /FOLDER/bannedfilename.txt             | 403       | no     |
+      | /FOLDER/containsbannedstring           | 403       | no     |
+      | /FOLDER/this-ContainsBannedString.txt  | 403       | no     |
+      | .extension                             | 202       | yes    |
+      | filename.txt                           | 202       | yes    |
+      | bannedfilename                         | 202       | yes    |
+      | bannedfilenamewithoutdot               | 202       | yes    |
+      | not-contains-banned-string.txt         | 202       | yes    |
+      | /FOLDER/.extension                     | 202       | yes    |
+      | /FOLDER/filename.txt                   | 202       | yes    |
+      | /FOLDER/bannedfilename                 | 202       | yes    |
+      | /FOLDER/bannedfilenamewithoutdot       | 202       | yes    |
+      | /FOLDER/not-contains-banned-string.txt | 202       | yes    |
+
+  Scenario: rename a file to an excluded directory name
+    When the administrator updates system config key "excluded_directories" with value '[".github"]' and type "json" using the occ command
+    And user "user0" moves file "/welcome.txt" asynchronously to "/.github" using the WebDAV API
+    Then the HTTP status code should be "403"
+    And user "user0" should see the following elements
+      | /welcome.txt |
+
+  Scenario: rename a file to an excluded directory name inside a parent directory
+    When the administrator updates system config key "excluded_directories" with value '[".github"]' and type "json" using the occ command
+    And user "user0" moves file "/welcome.txt" asynchronously to "/FOLDER/.github" using the WebDAV API
+    Then the HTTP status code should be "403"
+    And user "user0" should see the following elements
+      | /welcome.txt |
+
+  @skipOnOcV10.3
+  Scenario: rename a file to a filename that matches (or not) excluded_directories_regex
+    # Note: we have to write JSON for the value, and to get a backslash in the double-quotes we have to escape it
+    # The actual regular expressions end up being endswith\.bad$ and ^\.git
+    Given the administrator has updated system config key "excluded_directories_regex" with value '["endswith\\.bad$","^\\.git","containsvirusinthename"]' and type "json"
+    When user "user0" moves file "/welcome.txt" asynchronously to these filenames using the webDAV API then the results should be as listed
+      | filename                                   | http-code | exists |
+      | endswith.bad                               | 403       | no     |
+      | thisendswith.bad                           | 403       | no     |
+      | .git                                       | 403       | no     |
+      | .github                                    | 403       | no     |
+      | containsvirusinthename                     | 403       | no     |
+      | this-containsvirusinthename.txt            | 403       | no     |
+      | /FOLDER/endswith.bad                       | 403       | no     |
+      | /FOLDER/thisendswith.bad                   | 403       | no     |
+      | /FOLDER/.git                               | 403       | no     |
+      | /FOLDER/.github                            | 403       | no     |
+      | /FOLDER/containsvirusinthename             | 403       | no     |
+      | /FOLDER/this-containsvirusinthename.txt    | 403       | no     |
+      | endswith.badandotherstuff                  | 202       | yes    |
+      | thisendswith.badandotherstuff              | 202       | yes    |
+      | name.git                                   | 202       | yes    |
+      | name.github                                | 202       | yes    |
+      | not-contains-virus-in-the-name.txt         | 202       | yes    |
+      | /FOLDER/endswith.badandotherstuff          | 202       | yes    |
+      | /FOLDER/thisendswith.badandotherstuff      | 202       | yes    |
+      | /FOLDER/name.git                           | 202       | yes    |
+      | /FOLDER/name.github                        | 202       | yes    |
+      | /FOLDER/not-contains-virus-in-the-name.txt | 202       | yes    |
 
   Scenario: Renaming a file to a path with extension .part should not be possible
     When user "user0" moves file "/welcome.txt" asynchronously to "/welcome.part" using the WebDAV API
@@ -163,6 +242,7 @@ Feature: move (rename) file
     When user "user0" moves file "/welcome.txt" asynchronously to "/FOLDER/welcome.txt" using the WebDAV API
     Then the HTTP status code should be "201"
     And the following headers should not be set
+      | header                |
       | OC-JobStatus-Location |
     And the downloaded content when downloading file "/FOLDER/welcome.txt" for user "user0" with range "bytes=0-6" should be "Welcome"
 
@@ -251,4 +331,4 @@ Feature: move (rename) file
     And the following headers should match these regular expressions
       | OC-JobStatus-Location | /%base_path%\/remote\.php\/dav\/job-status\/user0\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/ |
     And the oc job status values of last request for user "user0" should match these regular expressions
-      | status | /^started$/        |
+      | status | /^started$/ |

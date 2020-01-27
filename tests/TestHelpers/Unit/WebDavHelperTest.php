@@ -36,7 +36,7 @@ class WebDavHelperTest extends PHPUnit\Framework\TestCase {
 	 *
 	 * @return void
 	 */
-	public function setUp() {
+	public function setUp(): void {
 		// mocks is not used, but is required. Else it will try to
 		// contact original server and will fail our tests.
 		$mock = new Mock(
@@ -64,7 +64,6 @@ class WebDavHelperTest extends PHPUnit\Framework\TestCase {
 			'GET',
 			'folder///file.txt',
 			[],
-			null,
 			null,
 			1,
 			"files",
@@ -103,7 +102,6 @@ class WebDavHelperTest extends PHPUnit\Framework\TestCase {
 			'folder///file.txt/',
 			[],
 			null,
-			null,
 			2,
 			"files",
 			null,
@@ -136,7 +134,6 @@ class WebDavHelperTest extends PHPUnit\Framework\TestCase {
 			'GET',
 			'folder/file?q=hello#newfile',
 			["Destination" => 'http://own.cloud/core?q="my files"#L133'],
-			null,
 			null,
 			2,
 			"files",
@@ -175,7 +172,6 @@ class WebDavHelperTest extends PHPUnit\Framework\TestCase {
 			'GET',
 			'folder',
 			[],
-			null,
 			null,
 			2,
 			"files",

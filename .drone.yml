@@ -173,6 +173,104 @@ depends_on:
 ---
 kind: pipeline
 type: docker
+name: changelog
+
+platform:
+  os: linux
+  arch: amd64
+
+clone:
+  disable: true
+
+steps:
+- name: clone-master
+  pull: always
+  image: plugins/git-action:1
+  settings:
+    actions:
+    - clone
+    branch: master
+    netrc_machine: github.com
+    netrc_password:
+      from_secret: github_token
+    netrc_username:
+      from_secret: github_username
+    path: /drone/src
+    remote: https://github.com/owncloud/core.git
+  when:
+    ref:
+      exclude:
+      - refs/pull/**
+
+- name: clone-branch
+  pull: always
+  image: plugins/git-action:1
+  settings:
+    actions:
+    - clone
+    branch: ${DRONE_SOURCE_BRANCH}
+    netrc_machine: github.com
+    netrc_password:
+      from_secret: github_token
+    netrc_username:
+      from_secret: github_username
+    path: /drone/src
+    remote: https://github.com/owncloud/core.git
+  when:
+    ref:
+      exclude:
+      - refs/heads/master
+
+- name: generate
+  pull: always
+  image: toolhippie/calens:latest
+  commands:
+  - calens >| CHANGELOG.md
+
+- name: diff
+  pull: always
+  image: owncloud/alpine:latest
+  commands:
+  - git diff
+
+- name: output
+  pull: always
+  image: toolhippie/calens:latest
+  commands:
+  - cat CHANGELOG.md
+
+- name: publish
+  pull: always
+  image: plugins/git-action:1
+  settings:
+    actions:
+    - commit
+    - push
+    author_email: devops@owncloud.com
+    author_name: ownClouders
+    branch: master
+    message: Automated changelog update [skip ci]
+    netrc_machine: github.com
+    netrc_password:
+      from_secret: github_token
+    netrc_username:
+      from_secret: github_username
+  when:
+    ref:
+      exclude:
+      - refs/pull/**
+
+trigger:
+  ref:
+  - refs/heads/master
+  - refs/pull/**
+
+depends_on:
+- install-dependencies-php7.1
+
+---
+kind: pipeline
+type: docker
 name: phpstan-php7.1
 
 platform:
@@ -598,6 +696,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -673,12 +772,6 @@ steps:
   environment:
     DB_TYPE: mariadb
 
-- name: tech-preview
-  pull: always
-  image: owncloudci/php:7.1
-  commands:
-  - php occ config:system:set dav.enable.tech_preview --value=true --type boolean
-
 - name: setup-storage
   pull: always
   image: owncloudci/php:7.1
@@ -703,9 +796,9 @@ steps:
   image: owncloudci/php:7.1
   commands:
   - curl -k -s -u user1:123456 -X MKCOL "https://server/remote.php/webdav/new_folder"
-  - curl -k -s -u user1:123456 "https://server/ocs/v2.php/apps/files_sharing/api/v1/shares" --data "path=/new_folder&shareType=0&permissions=15&name=new_folder&shareWith=admin"
+  - "curl -k -s -u user1:123456 \"https://server/ocs/v2.php/apps/files_sharing/api/v1/shares\" -H \"OCS-APIREQUEST: true\" --data \"path=/new_folder&shareType=0&permissions=15&name=new_folder&shareWith=admin\""
   - echo -n "PUBLIC_TOKEN=" > .env
-  - curl -k -s -u user1:123456 "https://server/ocs/v2.php/apps/files_sharing/api/v1/shares" --data "path=/new_folder&shareType=3&permissions=15&name=new_folder" | grep token | cut -d">" -f2 | cut -d"<" -f1 >> .env
+  - "curl -k -s -u user1:123456 \"https://server/ocs/v2.php/apps/files_sharing/api/v1/shares\" -H \"OCS-APIREQUEST: true\" --data \"path=/new_folder&shareType=3&permissions=15&name=new_folder\" | grep token | cut -d\">\" -f2 | cut -d\"<\" -f1 >> .env"
 
 - name: owncloud-log-server
   pull: always
@@ -832,6 +925,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -950,6 +1044,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -1068,6 +1163,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -1186,6 +1282,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -1304,6 +1401,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -1427,6 +1525,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -1560,6 +1659,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -1693,6 +1793,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -1826,6 +1927,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -1959,6 +2061,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -2094,6 +2197,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -2226,6 +2330,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -2358,6 +2463,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -2491,6 +2597,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -2596,6 +2703,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -2711,6 +2819,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -2816,6 +2925,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -2931,6 +3041,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -3070,6 +3181,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -3198,6 +3310,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -3333,6 +3446,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -3464,6 +3578,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -3555,7 +3670,7 @@ steps:
   pull: always
   image: owncloudci/php:7.1
   commands:
-  - wait-for-it -t 120 scality:8000
+  - wait-for-it -t 600 scality:8000
   - cp /drone/src/apps/files_primary_s3/tests/drone/scality.config.php /drone/src/config
   - php occ s3:create-bucket owncloud --accept-warning
 
@@ -3615,6 +3730,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -3708,6 +3824,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -3761,6 +3883,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -3854,6 +3977,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -3907,6 +4036,160 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
+- phpstan-php7.1
+- phan-php7.1
+- phan-php7.2
+- phan-php7.3
+
+---
+kind: pipeline
+type: docker
+name: apiAuthWebDav-mariadb10.2-php7.1
+
+platform:
+  os: linux
+  arch: amd64
+
+workspace:
+  base: /drone
+  path: src
+
+steps:
+- name: cache-restore
+  pull: always
+  image: plugins/s3-cache:1
+  settings:
+    access_key:
+      from_secret: cache_s3_access_key
+    endpoint:
+      from_secret: cache_s3_endpoint
+    restore: true
+    secret_key:
+      from_secret: cache_s3_secret_key
+  when:
+    instance:
+    - drone.owncloud.services
+    - drone.owncloud.com
+
+- name: composer-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make install-composer-deps
+  environment:
+    COMPOSER_HOME: /drone/src/.cache/composer
+
+- name: vendorbin-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make vendor-bin-deps
+  environment:
+    COMPOSER_HOME: /drone/src/.cache/composer
+
+- name: yarn-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make install-nodejs-deps
+  environment:
+    NPM_CONFIG_CACHE: /drone/src/.cache/npm
+    YARN_CACHE_FOLDER: /drone/src/.cache/yarn
+    bower_storage__packages: /drone/src/.cache/bower
+
+- name: install-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - bash tests/drone/install-server.sh
+  - php occ a:l
+  - php occ config:system:set trusted_domains 1 --value=server
+  - php occ log:manage --level 2
+  - php occ config:list
+  - php occ security:certificates:import /drone/server.crt
+  - php occ security:certificates
+  environment:
+    DB_TYPE: mariadb
+
+- name: install-extra-apps
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - git clone https://github.com/owncloud/testing.git /drone/src/apps/testing
+  - cd /drone/src/apps/testing
+  - composer install
+  - cd /drone/src
+  - php occ a:l
+  - php occ a:e testing
+  - php occ a:l
+
+- name: fix-permissions
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - chown -R www-data /drone/src
+
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
+- name: owncloud-log-server
+  pull: always
+  image: owncloud/ubuntu:18.04
+  detach: true
+  commands:
+  - tail -f /drone/src/data/owncloud.log
+
+- name: acceptance-tests
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - touch /drone/saved-settings.sh
+  - . /drone/saved-settings.sh
+  - make test-acceptance-api
+  environment:
+    BEHAT_SUITE: apiAuthWebDav
+    TESTING_REMOTE_SYSTEM: true
+    TEST_SERVER_URL: https://server
+
+services:
+- name: mariadb
+  pull: always
+  image: mariadb:10.2
+  environment:
+    MYSQL_DATABASE: owncloud
+    MYSQL_PASSWORD: owncloud
+    MYSQL_ROOT_PASSWORD: owncloud
+    MYSQL_USER: owncloud
+
+- name: server
+  pull: always
+  image: owncloudci/php:7.1
+  command:
+  - /usr/local/bin/apachectl
+  - -e
+  - debug
+  - -D
+  - FOREGROUND
+  environment:
+    APACHE_CONFIG_TEMPLATE: ssl
+    APACHE_SSL_CERT: /drone/server.crt
+    APACHE_SSL_CERT_CN: server
+    APACHE_SSL_KEY: /drone/server.key
+    APACHE_WEBROOT: /drone/src
+
+trigger:
+  ref:
+  - refs/pull/**
+  - refs/tags/**
+  - refs/heads/master
+
+depends_on:
+- coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -4000,6 +4283,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -4053,6 +4342,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -4146,6 +4436,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -4199,6 +4495,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -4292,6 +4589,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -4345,6 +4648,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -4438,6 +4742,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -4491,6 +4801,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -4584,6 +4895,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -4637,6 +4954,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -4730,6 +5048,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -4783,6 +5107,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -4876,6 +5201,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -4929,6 +5260,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -5022,6 +5354,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -5075,6 +5413,160 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
+- phpstan-php7.1
+- phan-php7.1
+- phan-php7.2
+- phan-php7.3
+
+---
+kind: pipeline
+type: docker
+name: apiShareCreateSpecial-mariadb10.2-php7.1
+
+platform:
+  os: linux
+  arch: amd64
+
+workspace:
+  base: /drone
+  path: src
+
+steps:
+- name: cache-restore
+  pull: always
+  image: plugins/s3-cache:1
+  settings:
+    access_key:
+      from_secret: cache_s3_access_key
+    endpoint:
+      from_secret: cache_s3_endpoint
+    restore: true
+    secret_key:
+      from_secret: cache_s3_secret_key
+  when:
+    instance:
+    - drone.owncloud.services
+    - drone.owncloud.com
+
+- name: composer-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make install-composer-deps
+  environment:
+    COMPOSER_HOME: /drone/src/.cache/composer
+
+- name: vendorbin-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make vendor-bin-deps
+  environment:
+    COMPOSER_HOME: /drone/src/.cache/composer
+
+- name: yarn-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make install-nodejs-deps
+  environment:
+    NPM_CONFIG_CACHE: /drone/src/.cache/npm
+    YARN_CACHE_FOLDER: /drone/src/.cache/yarn
+    bower_storage__packages: /drone/src/.cache/bower
+
+- name: install-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - bash tests/drone/install-server.sh
+  - php occ a:l
+  - php occ config:system:set trusted_domains 1 --value=server
+  - php occ log:manage --level 2
+  - php occ config:list
+  - php occ security:certificates:import /drone/server.crt
+  - php occ security:certificates
+  environment:
+    DB_TYPE: mariadb
+
+- name: install-extra-apps
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - git clone https://github.com/owncloud/testing.git /drone/src/apps/testing
+  - cd /drone/src/apps/testing
+  - composer install
+  - cd /drone/src
+  - php occ a:l
+  - php occ a:e testing
+  - php occ a:l
+
+- name: fix-permissions
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - chown -R www-data /drone/src
+
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
+- name: owncloud-log-server
+  pull: always
+  image: owncloud/ubuntu:18.04
+  detach: true
+  commands:
+  - tail -f /drone/src/data/owncloud.log
+
+- name: acceptance-tests
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - touch /drone/saved-settings.sh
+  - . /drone/saved-settings.sh
+  - make test-acceptance-api
+  environment:
+    BEHAT_SUITE: apiShareCreateSpecial
+    TESTING_REMOTE_SYSTEM: true
+    TEST_SERVER_URL: https://server
+
+services:
+- name: mariadb
+  pull: always
+  image: mariadb:10.2
+  environment:
+    MYSQL_DATABASE: owncloud
+    MYSQL_PASSWORD: owncloud
+    MYSQL_ROOT_PASSWORD: owncloud
+    MYSQL_USER: owncloud
+
+- name: server
+  pull: always
+  image: owncloudci/php:7.1
+  command:
+  - /usr/local/bin/apachectl
+  - -e
+  - debug
+  - -D
+  - FOREGROUND
+  environment:
+    APACHE_CONFIG_TEMPLATE: ssl
+    APACHE_SSL_CERT: /drone/server.crt
+    APACHE_SSL_CERT_CN: server
+    APACHE_SSL_KEY: /drone/server.key
+    APACHE_WEBROOT: /drone/src
+
+trigger:
+  ref:
+  - refs/pull/**
+  - refs/tags/**
+  - refs/heads/master
+
+depends_on:
+- coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -5168,6 +5660,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -5221,6 +5719,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -5314,6 +5813,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -5367,6 +5872,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -5460,6 +5966,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -5513,6 +6025,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -5606,6 +6119,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -5659,6 +6178,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -5667,7 +6187,7 @@ depends_on:
 ---
 kind: pipeline
 type: docker
-name: apiShareReshare-mariadb10.2-php7.1
+name: apiSharePublicLink1-mariadb10.2-php7.1
 
 platform:
   os: linux
@@ -5752,6 +6272,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -5767,7 +6293,7 @@ steps:
   - . /drone/saved-settings.sh
   - make test-acceptance-api
   environment:
-    BEHAT_SUITE: apiShareReshare
+    BEHAT_SUITE: apiSharePublicLink1
     TESTING_REMOTE_SYSTEM: true
     TEST_SERVER_URL: https://server
 
@@ -5805,6 +6331,466 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
+- phpstan-php7.1
+- phan-php7.1
+- phan-php7.2
+- phan-php7.3
+
+---
+kind: pipeline
+type: docker
+name: apiSharePublicLink2-mariadb10.2-php7.1
+
+platform:
+  os: linux
+  arch: amd64
+
+workspace:
+  base: /drone
+  path: src
+
+steps:
+- name: cache-restore
+  pull: always
+  image: plugins/s3-cache:1
+  settings:
+    access_key:
+      from_secret: cache_s3_access_key
+    endpoint:
+      from_secret: cache_s3_endpoint
+    restore: true
+    secret_key:
+      from_secret: cache_s3_secret_key
+  when:
+    instance:
+    - drone.owncloud.services
+    - drone.owncloud.com
+
+- name: composer-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make install-composer-deps
+  environment:
+    COMPOSER_HOME: /drone/src/.cache/composer
+
+- name: vendorbin-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make vendor-bin-deps
+  environment:
+    COMPOSER_HOME: /drone/src/.cache/composer
+
+- name: yarn-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make install-nodejs-deps
+  environment:
+    NPM_CONFIG_CACHE: /drone/src/.cache/npm
+    YARN_CACHE_FOLDER: /drone/src/.cache/yarn
+    bower_storage__packages: /drone/src/.cache/bower
+
+- name: install-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - bash tests/drone/install-server.sh
+  - php occ a:l
+  - php occ config:system:set trusted_domains 1 --value=server
+  - php occ log:manage --level 2
+  - php occ config:list
+  - php occ security:certificates:import /drone/server.crt
+  - php occ security:certificates
+  environment:
+    DB_TYPE: mariadb
+
+- name: install-extra-apps
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - git clone https://github.com/owncloud/testing.git /drone/src/apps/testing
+  - cd /drone/src/apps/testing
+  - composer install
+  - cd /drone/src
+  - php occ a:l
+  - php occ a:e testing
+  - php occ a:l
+
+- name: fix-permissions
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - chown -R www-data /drone/src
+
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
+- name: owncloud-log-server
+  pull: always
+  image: owncloud/ubuntu:18.04
+  detach: true
+  commands:
+  - tail -f /drone/src/data/owncloud.log
+
+- name: acceptance-tests
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - touch /drone/saved-settings.sh
+  - . /drone/saved-settings.sh
+  - make test-acceptance-api
+  environment:
+    BEHAT_SUITE: apiSharePublicLink2
+    TESTING_REMOTE_SYSTEM: true
+    TEST_SERVER_URL: https://server
+
+services:
+- name: mariadb
+  pull: always
+  image: mariadb:10.2
+  environment:
+    MYSQL_DATABASE: owncloud
+    MYSQL_PASSWORD: owncloud
+    MYSQL_ROOT_PASSWORD: owncloud
+    MYSQL_USER: owncloud
+
+- name: server
+  pull: always
+  image: owncloudci/php:7.1
+  command:
+  - /usr/local/bin/apachectl
+  - -e
+  - debug
+  - -D
+  - FOREGROUND
+  environment:
+    APACHE_CONFIG_TEMPLATE: ssl
+    APACHE_SSL_CERT: /drone/server.crt
+    APACHE_SSL_CERT_CN: server
+    APACHE_SSL_KEY: /drone/server.key
+    APACHE_WEBROOT: /drone/src
+
+trigger:
+  ref:
+  - refs/pull/**
+  - refs/tags/**
+  - refs/heads/master
+
+depends_on:
+- coding-standard-php7.3
+- changelog
+- phpstan-php7.1
+- phan-php7.1
+- phan-php7.2
+- phan-php7.3
+
+---
+kind: pipeline
+type: docker
+name: apiShareReshare1-mariadb10.2-php7.1
+
+platform:
+  os: linux
+  arch: amd64
+
+workspace:
+  base: /drone
+  path: src
+
+steps:
+- name: cache-restore
+  pull: always
+  image: plugins/s3-cache:1
+  settings:
+    access_key:
+      from_secret: cache_s3_access_key
+    endpoint:
+      from_secret: cache_s3_endpoint
+    restore: true
+    secret_key:
+      from_secret: cache_s3_secret_key
+  when:
+    instance:
+    - drone.owncloud.services
+    - drone.owncloud.com
+
+- name: composer-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make install-composer-deps
+  environment:
+    COMPOSER_HOME: /drone/src/.cache/composer
+
+- name: vendorbin-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make vendor-bin-deps
+  environment:
+    COMPOSER_HOME: /drone/src/.cache/composer
+
+- name: yarn-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make install-nodejs-deps
+  environment:
+    NPM_CONFIG_CACHE: /drone/src/.cache/npm
+    YARN_CACHE_FOLDER: /drone/src/.cache/yarn
+    bower_storage__packages: /drone/src/.cache/bower
+
+- name: install-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - bash tests/drone/install-server.sh
+  - php occ a:l
+  - php occ config:system:set trusted_domains 1 --value=server
+  - php occ log:manage --level 2
+  - php occ config:list
+  - php occ security:certificates:import /drone/server.crt
+  - php occ security:certificates
+  environment:
+    DB_TYPE: mariadb
+
+- name: install-extra-apps
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - git clone https://github.com/owncloud/testing.git /drone/src/apps/testing
+  - cd /drone/src/apps/testing
+  - composer install
+  - cd /drone/src
+  - php occ a:l
+  - php occ a:e testing
+  - php occ a:l
+
+- name: fix-permissions
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - chown -R www-data /drone/src
+
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
+- name: owncloud-log-server
+  pull: always
+  image: owncloud/ubuntu:18.04
+  detach: true
+  commands:
+  - tail -f /drone/src/data/owncloud.log
+
+- name: acceptance-tests
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - touch /drone/saved-settings.sh
+  - . /drone/saved-settings.sh
+  - make test-acceptance-api
+  environment:
+    BEHAT_SUITE: apiShareReshare1
+    TESTING_REMOTE_SYSTEM: true
+    TEST_SERVER_URL: https://server
+
+services:
+- name: mariadb
+  pull: always
+  image: mariadb:10.2
+  environment:
+    MYSQL_DATABASE: owncloud
+    MYSQL_PASSWORD: owncloud
+    MYSQL_ROOT_PASSWORD: owncloud
+    MYSQL_USER: owncloud
+
+- name: server
+  pull: always
+  image: owncloudci/php:7.1
+  command:
+  - /usr/local/bin/apachectl
+  - -e
+  - debug
+  - -D
+  - FOREGROUND
+  environment:
+    APACHE_CONFIG_TEMPLATE: ssl
+    APACHE_SSL_CERT: /drone/server.crt
+    APACHE_SSL_CERT_CN: server
+    APACHE_SSL_KEY: /drone/server.key
+    APACHE_WEBROOT: /drone/src
+
+trigger:
+  ref:
+  - refs/pull/**
+  - refs/tags/**
+  - refs/heads/master
+
+depends_on:
+- coding-standard-php7.3
+- changelog
+- phpstan-php7.1
+- phan-php7.1
+- phan-php7.2
+- phan-php7.3
+
+---
+kind: pipeline
+type: docker
+name: apiShareReshare2-mariadb10.2-php7.1
+
+platform:
+  os: linux
+  arch: amd64
+
+workspace:
+  base: /drone
+  path: src
+
+steps:
+- name: cache-restore
+  pull: always
+  image: plugins/s3-cache:1
+  settings:
+    access_key:
+      from_secret: cache_s3_access_key
+    endpoint:
+      from_secret: cache_s3_endpoint
+    restore: true
+    secret_key:
+      from_secret: cache_s3_secret_key
+  when:
+    instance:
+    - drone.owncloud.services
+    - drone.owncloud.com
+
+- name: composer-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make install-composer-deps
+  environment:
+    COMPOSER_HOME: /drone/src/.cache/composer
+
+- name: vendorbin-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make vendor-bin-deps
+  environment:
+    COMPOSER_HOME: /drone/src/.cache/composer
+
+- name: yarn-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make install-nodejs-deps
+  environment:
+    NPM_CONFIG_CACHE: /drone/src/.cache/npm
+    YARN_CACHE_FOLDER: /drone/src/.cache/yarn
+    bower_storage__packages: /drone/src/.cache/bower
+
+- name: install-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - bash tests/drone/install-server.sh
+  - php occ a:l
+  - php occ config:system:set trusted_domains 1 --value=server
+  - php occ log:manage --level 2
+  - php occ config:list
+  - php occ security:certificates:import /drone/server.crt
+  - php occ security:certificates
+  environment:
+    DB_TYPE: mariadb
+
+- name: install-extra-apps
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - git clone https://github.com/owncloud/testing.git /drone/src/apps/testing
+  - cd /drone/src/apps/testing
+  - composer install
+  - cd /drone/src
+  - php occ a:l
+  - php occ a:e testing
+  - php occ a:l
+
+- name: fix-permissions
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - chown -R www-data /drone/src
+
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
+- name: owncloud-log-server
+  pull: always
+  image: owncloud/ubuntu:18.04
+  detach: true
+  commands:
+  - tail -f /drone/src/data/owncloud.log
+
+- name: acceptance-tests
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - touch /drone/saved-settings.sh
+  - . /drone/saved-settings.sh
+  - make test-acceptance-api
+  environment:
+    BEHAT_SUITE: apiShareReshare2
+    TESTING_REMOTE_SYSTEM: true
+    TEST_SERVER_URL: https://server
+
+services:
+- name: mariadb
+  pull: always
+  image: mariadb:10.2
+  environment:
+    MYSQL_DATABASE: owncloud
+    MYSQL_PASSWORD: owncloud
+    MYSQL_ROOT_PASSWORD: owncloud
+    MYSQL_USER: owncloud
+
+- name: server
+  pull: always
+  image: owncloudci/php:7.1
+  command:
+  - /usr/local/bin/apachectl
+  - -e
+  - debug
+  - -D
+  - FOREGROUND
+  environment:
+    APACHE_CONFIG_TEMPLATE: ssl
+    APACHE_SSL_CERT: /drone/server.crt
+    APACHE_SSL_CERT_CN: server
+    APACHE_SSL_KEY: /drone/server.key
+    APACHE_WEBROOT: /drone/src
+
+trigger:
+  ref:
+  - refs/pull/**
+  - refs/tags/**
+  - refs/heads/master
+
+depends_on:
+- coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -5898,6 +6884,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -5951,6 +6943,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -6044,6 +7037,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -6097,6 +7096,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -6190,6 +7190,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -6243,6 +7249,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -6336,6 +7343,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -6389,6 +7402,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -6482,6 +7496,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -6535,6 +7555,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -6628,6 +7649,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -6681,6 +7708,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -6774,6 +7802,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -6827,6 +7861,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -6920,6 +7955,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -6973,6 +8014,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -7066,6 +8108,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -7119,6 +8167,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -7212,6 +8261,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -7265,6 +8320,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -7365,6 +8421,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -7418,6 +8480,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -7500,6 +8563,11 @@ steps:
   image: owncloudci/core
   settings:
     core_path: /drone/federated
+    db_host: mariadb-federated
+    db_name: owncloud-federated
+    db_password: owncloud
+    db_type: mysql
+    db_username: owncloud
     version: daily-master-qa
 
 - name: configure-federated
@@ -7544,6 +8612,13 @@ steps:
   commands:
   - chown -R www-data /drone/src
   - chown -R www-data /drone/federated
+
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+  - wait-for-it -t 600 federated:80
 
 - name: owncloud-log-server
   pull: always
@@ -7606,6 +8681,15 @@ services:
     APACHE_SSL_KEY: /drone/federated.key
     APACHE_WEBROOT: /drone/federated
 
+- name: mariadb-federated
+  pull: always
+  image: mariadb:10.2
+  environment:
+    MYSQL_DATABASE: owncloud-federated
+    MYSQL_PASSWORD: owncloud
+    MYSQL_ROOT_PASSWORD: owncloud
+    MYSQL_USER: owncloud
+
 trigger:
   ref:
   - refs/pull/**
@@ -7614,6 +8698,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -7696,6 +8781,11 @@ steps:
   image: owncloudci/core
   settings:
     core_path: /drone/federated
+    db_host: mariadb-federated
+    db_name: owncloud-federated
+    db_password: owncloud
+    db_type: mysql
+    db_username: owncloud
     version: 10.2.1
 
 - name: configure-federated
@@ -7740,6 +8830,13 @@ steps:
   commands:
   - chown -R www-data /drone/src
   - chown -R www-data /drone/federated
+
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+  - wait-for-it -t 600 federated:80
 
 - name: owncloud-log-server
   pull: always
@@ -7802,6 +8899,15 @@ services:
     APACHE_SSL_KEY: /drone/federated.key
     APACHE_WEBROOT: /drone/federated
 
+- name: mariadb-federated
+  pull: always
+  image: mariadb:10.2
+  environment:
+    MYSQL_DATABASE: owncloud-federated
+    MYSQL_PASSWORD: owncloud
+    MYSQL_ROOT_PASSWORD: owncloud
+    MYSQL_USER: owncloud
+
 trigger:
   ref:
   - refs/pull/**
@@ -7810,6 +8916,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -7903,6 +9010,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -7961,6 +9074,165 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
+- phpstan-php7.1
+- phan-php7.1
+- phan-php7.2
+- phan-php7.3
+
+---
+kind: pipeline
+type: docker
+name: cliLocalStorage-mariadb10.2-php7.1
+
+platform:
+  os: linux
+  arch: amd64
+
+workspace:
+  base: /drone
+  path: src
+
+steps:
+- name: cache-restore
+  pull: always
+  image: plugins/s3-cache:1
+  settings:
+    access_key:
+      from_secret: cache_s3_access_key
+    endpoint:
+      from_secret: cache_s3_endpoint
+    restore: true
+    secret_key:
+      from_secret: cache_s3_secret_key
+  when:
+    instance:
+    - drone.owncloud.services
+    - drone.owncloud.com
+
+- name: composer-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make install-composer-deps
+  environment:
+    COMPOSER_HOME: /drone/src/.cache/composer
+
+- name: vendorbin-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make vendor-bin-deps
+  environment:
+    COMPOSER_HOME: /drone/src/.cache/composer
+
+- name: yarn-install
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - make install-nodejs-deps
+  environment:
+    NPM_CONFIG_CACHE: /drone/src/.cache/npm
+    YARN_CACHE_FOLDER: /drone/src/.cache/yarn
+    bower_storage__packages: /drone/src/.cache/bower
+
+- name: install-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - bash tests/drone/install-server.sh
+  - php occ a:l
+  - php occ config:system:set trusted_domains 1 --value=server
+  - php occ log:manage --level 2
+  - php occ config:list
+  - php occ security:certificates:import /drone/server.crt
+  - php occ security:certificates
+  environment:
+    DB_TYPE: mariadb
+
+- name: install-extra-apps
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - git clone https://github.com/owncloud/testing.git /drone/src/apps/testing
+  - cd /drone/src/apps/testing
+  - composer install
+  - cd /drone/src
+  - php occ a:l
+  - php occ a:e testing
+  - php occ a:l
+
+- name: fix-permissions
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - chown -R www-data /drone/src
+
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
+- name: owncloud-log-server
+  pull: always
+  image: owncloud/ubuntu:18.04
+  detach: true
+  commands:
+  - tail -f /drone/src/data/owncloud.log
+
+- name: acceptance-tests
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - touch /drone/saved-settings.sh
+  - . /drone/saved-settings.sh
+  - make test-acceptance-cli
+  environment:
+    BEHAT_SUITE: cliLocalStorage
+    MAILHOG_HOST: email
+    TESTING_REMOTE_SYSTEM: true
+    TEST_SERVER_URL: https://server
+
+services:
+- name: mariadb
+  pull: always
+  image: mariadb:10.2
+  environment:
+    MYSQL_DATABASE: owncloud
+    MYSQL_PASSWORD: owncloud
+    MYSQL_ROOT_PASSWORD: owncloud
+    MYSQL_USER: owncloud
+
+- name: email
+  pull: always
+  image: mailhog/mailhog
+
+- name: server
+  pull: always
+  image: owncloudci/php:7.1
+  command:
+  - /usr/local/bin/apachectl
+  - -e
+  - debug
+  - -D
+  - FOREGROUND
+  environment:
+    APACHE_CONFIG_TEMPLATE: ssl
+    APACHE_SSL_CERT: /drone/server.crt
+    APACHE_SSL_CERT_CN: server
+    APACHE_SSL_KEY: /drone/server.key
+    APACHE_WEBROOT: /drone/src
+
+trigger:
+  ref:
+  - refs/pull/**
+  - refs/tags/**
+  - refs/heads/master
+
+depends_on:
+- coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -8054,6 +9326,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -8112,6 +9390,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -8205,6 +9484,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -8263,6 +9548,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -8356,6 +9642,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -8414,6 +9706,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -8507,6 +9800,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -8560,6 +9859,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -8653,6 +9953,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -8717,6 +10023,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -8810,6 +10117,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -8874,6 +10187,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -8967,6 +10281,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -9031,6 +10351,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -9124,6 +10445,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -9188,6 +10515,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -9281,6 +10609,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -9345,6 +10679,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -9438,6 +10773,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -9502,6 +10843,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -9595,6 +10937,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -9659,6 +11007,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -9752,6 +11101,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -9816,6 +11171,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -9909,6 +11265,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -9973,6 +11335,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -10066,6 +11429,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -10130,6 +11499,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -10223,6 +11593,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -10287,6 +11663,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -10380,6 +11757,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -10444,6 +11827,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -10537,6 +11921,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -10601,6 +11991,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -10694,6 +12085,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -10758,6 +12155,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -10851,6 +12249,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -10915,6 +12319,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -11008,6 +12413,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -11072,6 +12483,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -11165,6 +12577,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -11229,6 +12647,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -11322,6 +12741,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -11386,6 +12811,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -11479,6 +12905,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -11543,6 +12975,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -11636,6 +13069,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -11700,6 +13139,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -11793,6 +13233,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -11857,6 +13303,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -11950,6 +13397,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -12014,6 +13467,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -12107,6 +13561,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -12171,6 +13631,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -12264,6 +13725,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -12328,6 +13795,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -12421,6 +13889,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -12485,6 +13959,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -12585,6 +14060,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -12649,6 +14130,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -12731,6 +14213,11 @@ steps:
   image: owncloudci/core
   settings:
     core_path: /drone/federated
+    db_host: mariadb-federated
+    db_name: owncloud-federated
+    db_password: owncloud
+    db_type: mysql
+    db_username: owncloud
     version: daily-master-qa
 
 - name: configure-federated
@@ -12775,6 +14262,13 @@ steps:
   commands:
   - chown -R www-data /drone/src
   - chown -R www-data /drone/federated
+
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+  - wait-for-it -t 600 federated:80
 
 - name: owncloud-log-server
   pull: always
@@ -12847,6 +14341,15 @@ services:
     APACHE_SSL_KEY: /drone/federated.key
     APACHE_WEBROOT: /drone/federated
 
+- name: mariadb-federated
+  pull: always
+  image: mariadb:10.2
+  environment:
+    MYSQL_DATABASE: owncloud-federated
+    MYSQL_PASSWORD: owncloud
+    MYSQL_ROOT_PASSWORD: owncloud
+    MYSQL_USER: owncloud
+
 trigger:
   ref:
   - refs/pull/**
@@ -12855,6 +14358,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -12937,6 +14441,11 @@ steps:
   image: owncloudci/core
   settings:
     core_path: /drone/federated
+    db_host: mariadb-federated
+    db_name: owncloud-federated
+    db_password: owncloud
+    db_type: mysql
+    db_username: owncloud
     version: 10.2.1
 
 - name: configure-federated
@@ -12981,6 +14490,13 @@ steps:
   commands:
   - chown -R www-data /drone/src
   - chown -R www-data /drone/federated
+
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+  - wait-for-it -t 600 federated:80
 
 - name: owncloud-log-server
   pull: always
@@ -13053,6 +14569,15 @@ services:
     APACHE_SSL_KEY: /drone/federated.key
     APACHE_WEBROOT: /drone/federated
 
+- name: mariadb-federated
+  pull: always
+  image: mariadb:10.2
+  environment:
+    MYSQL_DATABASE: owncloud-federated
+    MYSQL_PASSWORD: owncloud
+    MYSQL_ROOT_PASSWORD: owncloud
+    MYSQL_USER: owncloud
+
 trigger:
   ref:
   - refs/pull/**
@@ -13061,6 +14586,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -13154,6 +14680,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -13221,6 +14753,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -13314,6 +14847,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -13381,6 +14920,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -13474,6 +15014,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -13541,6 +15087,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -13635,6 +15182,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -13707,6 +15260,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -13801,6 +15355,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -13873,6 +15433,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -13967,6 +15528,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -14039,6 +15606,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -14133,6 +15701,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -14190,6 +15764,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -14284,6 +15859,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -14341,6 +15922,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -14435,6 +16017,12 @@ steps:
   commands:
   - chown -R www-data /drone/src
 
+- name: wait-for-server
+  pull: always
+  image: owncloudci/php:7.1
+  commands:
+  - wait-for-it -t 600 server:80
+
 - name: owncloud-log-server
   pull: always
   image: owncloud/ubuntu:18.04
@@ -14492,6 +16080,7 @@ trigger:
 
 depends_on:
 - coding-standard-php7.3
+- changelog
 - phpstan-php7.1
 - phan-php7.1
 - phan-php7.2
@@ -14553,6 +16142,7 @@ depends_on:
 - phpunit-php7.1-sqlite-scality
 - apiAuth-mariadb10.2-php7.1
 - apiAuthOcs-mariadb10.2-php7.1
+- apiAuthWebDav-mariadb10.2-php7.1
 - apiCapabilities-mariadb10.2-php7.1
 - apiComments-mariadb10.2-php7.1
 - apiFavorites-mariadb10.2-php7.1
@@ -14561,11 +16151,15 @@ depends_on:
 - apiProvisioning-v2-mariadb10.2-php7.1
 - apiProvisioningGroups-v1-mariadb10.2-php7.1
 - apiProvisioningGroups-v2-mariadb10.2-php7.1
+- apiShareCreateSpecial-mariadb10.2-php7.1
 - apiSharees-mariadb10.2-php7.1
 - apiShareManagement-mariadb10.2-php7.1
 - apiShareManagementBasic-mariadb10.2-php7.1
 - apiShareOperations-mariadb10.2-php7.1
-- apiShareReshare-mariadb10.2-php7.1
+- apiSharePublicLink1-mariadb10.2-php7.1
+- apiSharePublicLink2-mariadb10.2-php7.1
+- apiShareReshare1-mariadb10.2-php7.1
+- apiShareReshare2-mariadb10.2-php7.1
 - apiShareUpdate-mariadb10.2-php7.1
 - apiTags-mariadb10.2-php7.1
 - apiTrashbin-mariadb10.2-php7.1
@@ -14580,6 +16174,7 @@ depends_on:
 - apiFederation-master-mariadb10.2-php7.1
 - apiFederation-10.2.1-mariadb10.2-php7.1
 - cliBackground-mariadb10.2-php7.1
+- cliLocalStorage-mariadb10.2-php7.1
 - cliMain-mariadb10.2-php7.1
 - cliProvisioning-mariadb10.2-php7.1
 - cliTrashbin-mariadb10.2-php7.1

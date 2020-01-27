@@ -35,7 +35,7 @@ require_once 'bootstrap.php';
  */
 class WebUIAdminStorageSettingsContext extends RawMinkContext implements Context {
 	private $adminStorageSettingsPage;
-	
+
 	/**
 	 *
 	 * @var WebUIGeneralContext
@@ -74,7 +74,6 @@ class WebUIAdminStorageSettingsContext extends RawMinkContext implements Context
 
 	/**
 	 * @When the administrator enables the external storage using the webUI
-	 * @Given the administrator has enabled the external storage
 	 *
 	 * @return void
 	 */
@@ -96,14 +95,12 @@ class WebUIAdminStorageSettingsContext extends RawMinkContext implements Context
 	}
 
 	/**
-	 * @When the administrator creates the local storage mount :mount using the webUI
-	 * @Given the administrator has created the local storage mount :mount from the admin storage settings page
-	 *
 	 * @param string $mount
 	 *
 	 * @return void
+	 * @throws Exception
 	 */
-	public function theAdministratorCreatesTheLocalStorageMountUsingTheWebui($mount) {
+	public function createLocalStorageMountUsingTheWebui($mount) {
 		$serverRoot = SetupHelper::getServerRoot(
 			$this->featureContext->getBaseUrl(),
 			$this->featureContext->getAdminUsername(),
@@ -118,8 +115,34 @@ class WebUIAdminStorageSettingsContext extends RawMinkContext implements Context
 			$dirLocation
 		);
 		$storageIds = $this->featureContext->getStorageIds();
-		$lastMount = \end($storageIds);
-		$this->featureContext->addStorageId($mount, $lastMount + 1);
+		\end($storageIds);
+		$lastMountId = \key($storageIds);
+		$this->featureContext->addStorageId($mount, $lastMountId + 1);
+	}
+
+	/**
+	 * @When the administrator creates the local storage mount :mount using the webUI
+	 *
+	 * @param string $mount
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorCreatesTheLocalStorageMountUsingTheWebui($mount) {
+		$this->createLocalStorageMountUsingTheWebui($mount);
+	}
+
+	/**
+	 * @Given the administrator has created the local storage mount :mount from the admin storage settings page
+	 *
+	 * @param string $mount
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function theAdministratorHasCreatedTheLocalStorageMountUsingTheWebui($mount) {
+		$this->createLocalStorageMountUsingTheWebui($mount);
+		$this->featureContext->asFileOrFolderShouldExist($this->featureContext->getAdminUsername(), "folder", $mount);
 	}
 
 	/**
@@ -162,6 +185,16 @@ class WebUIAdminStorageSettingsContext extends RawMinkContext implements Context
 	}
 
 	/**
+	 * @When the administrator enables read-only for the last created local storage mount using the webUI
+	 *
+	 * @return void
+	 */
+	public function theAdministratorEnablesReadonlyForTheLastCreatedLocalStorageMountUsingTheWebui() {
+		$this->adminStorageSettingsPage->openMountOptions($this->getSession());
+		$this->adminStorageSettingsPage->enableReadonlyMountOption($this->getSession());
+	}
+
+	/**
 	 * @Then /^the last created local storage mount should (not|)\s?be listed on the webUI$/
 	 *
 	 * @param string $shouldOrNot
@@ -169,7 +202,7 @@ class WebUIAdminStorageSettingsContext extends RawMinkContext implements Context
 	 * @return void
 	 */
 	public function theLastCreatedLocalStorageMountShouldOrNotBeListedOnTheWebui($shouldOrNot) {
-		$mountNameList = \array_keys($this->featureContext->getStorageIds());
+		$mountNameList = $this->featureContext->getStorageIds();
 		$lastCreatedMountName = \end($mountNameList);
 		$result = $this->adminStorageSettingsPage->checkIfLastCreatedMountIsPresent(
 			$lastCreatedMountName

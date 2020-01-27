@@ -15,6 +15,20 @@ Feature: edit users
     And the OCS status code should be "100"
     And the email address of user "brand-new-user" should be "brand-new-user@example.com"
 
+  @skipOnOcV10.3
+  Scenario Outline: the administrator can edit a user email of an user with special characters in the username
+    Given these users have been created with skeleton files:
+      | username   | email   |
+      | <username> | <email> |
+    When the administrator changes the email of user "<username>" to "a-different-email@example.com" using the provisioning API
+    Then the HTTP status code should be "200"
+    And the OCS status code should be "100"
+    And the email address of user "<username>" should be "a-different-email@example.com"
+    Examples:
+      | username | email               |
+      | a@-+_.b  | a.b@example.com     |
+      | a space  | a.space@example.com |
+
   @smokeTest
   Scenario: the administrator can edit a user display (the API allows editing the "display name" by using the key word "display")
     Given user "brand-new-user" has been created with default attributes and skeleton files
@@ -82,8 +96,8 @@ Feature: edit users
       | displayname | <display-name> |
     And the display name of user "brand-new-user" should be "<display-name>"
     Examples:
-      | display-name   |
-      | Alan Border    |
+      | display-name    |
+      | Alan Border     |
       | Phil Cyclist 🚴 |
 
   Scenario: a normal user should not be able to change their quota

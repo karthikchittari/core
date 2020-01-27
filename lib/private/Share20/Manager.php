@@ -169,6 +169,17 @@ class Manager implements IManager {
 	}
 
 	/**
+	 * Decide if a share has expired
+	 *
+	 * @param \OCP\Share\IShare $share
+	 * @return bool
+	 */
+	private function shareHasExpired($share) {
+		$expirationDate = $share->getExpirationDate();
+		return ($expirationDate !== null) && ($expirationDate < new \DateTime("today"));
+	}
+
+	/**
 	 * Verify if a password meets all requirements
 	 *
 	 * @param string $password
@@ -306,12 +317,12 @@ class Manager implements IManager {
 			$share->setPermissions($share->getPermissions() & ~\OCP\Constants::PERMISSION_CREATE);
 		}
 
-		/**
+		/*
 		 * TODO: ideally, getPermissions should always return valid permission
 		 *       and this check should be done in Share object's setPermission method
 		 */
 		if ($share->getPermissions() < 0 || $share->getPermissions() > \OCP\Constants::PERMISSION_ALL) {
-			$message_t = $this->l->t('invalid permissionss');
+			$message_t = $this->l->t('Invalid permissions');
 			throw new GenericShareException($message_t, $message_t, 404);
 		}
 
@@ -320,8 +331,14 @@ class Manager implements IManager {
 			throw new GenericShareException($message_t, $message_t, 400);
 		}
 
-		/** Use share node permission as default $maxPermissions*/
+		/* Use share node permission as default $maxPermissions */
 		$maxPermissions = $shareNode->getPermissions();
+
+		/* By default, there are no required attributes to be set on a file */
+		$requiredAttributes = $this->newShare()->newAttributes();
+		$currentAttributes = $share->getAttributes() !== null ?
+			$share->getAttributes() : $this->newShare()->newAttributes();
+
 		/*
 		 * Quick fix for #23536
 		 * Non moveable mount points do not have update and delete permissions
@@ -331,65 +348,48 @@ class Manager implements IManager {
 			$maxPermissions |= \OCP\Constants::PERMISSION_DELETE | \OCP\Constants::PERMISSION_UPDATE;
 		}
 
-		/** If it is re-share, calculate $maxPermissions based on all incoming share permissions */
+		/*
+		 * If share node is also share ($share is reshare),
+		 * get $maxPermissions based on supershare permissions
+		 */
 		if ($this->userSession !== null && $this->userSession->getUser() !== null &&
 			$share->getShareOwner() !== $this->userSession->getUser()->getUID()) {
-			$maxPermissions = $this->calculateReshareNodePermissions($share);
-		}
-
-		// Check that we do not share with more permissions than we have
-		if (!$this->strictSubsetOf($maxPermissions, $share->getPermissions())) {
-			$message_t = $this->l->t('Cannot increase permissions of %s', [$share->getNode()->getPath()]);
-			throw new GenericShareException($message_t, $message_t, 404);
-		}
-	}
-
-	/**
-	 * It calculates reshare permissions based on all share mount points
-	 * that mounted to UserFolder of sharer user
-	 *
-	 * @param \OCP\Share\IShare $share The share to validate its permission
-	 * @return int
-	 */
-	protected function calculateReshareNodePermissions(IShare $share) {
-		/*
-		 * if it is an incoming federated share, use node permission
-		 */
-		if ($share->getNode()->getStorage()->instanceOfStorage('OCA\Files_Sharing\External\Storage')) {
-			return $share->getNode()->getPermissions();
-		}
-		$maxPermissions = 0;
-		$incomingShares = [];
-		$shareTypes = [
-			\OCP\Share::SHARE_TYPE_USER,
-			\OCP\Share::SHARE_TYPE_GROUP
-		];
-		$userFolder = $this->rootFolder->getUserFolder($share->getSharedBy());
-		/**
-		 * The node can be shared multiple times, get all share nodes
-		 */
-		$incomingShareNodes = $userFolder->getById($share->getNode()->getId());
-		foreach ($incomingShareNodes as $incomingShareNode) {
-			/**
-			 * find mountpoint of the share node,
-			 * check incoming share permissions based on mountpoint node
-			 */
-			$mount = $incomingShareNode->getMountPoint();
-			$shareMountPointNodes = $userFolder->getById($mount->getStorageRootId());
-			foreach ($shareMountPointNodes as $shareMountPointNode) {
-				$incomingShares = \array_merge($incomingShares, $this->getAllSharedWith(
-					$share->getSharedBy(),
-					$shareTypes,
-					$shareMountPointNode
-				));
+			// retrieve received share node $shareFileNode being reshared with $share
+			$userFolder = $this->rootFolder->getUserFolder($share->getSharedBy());
+			$shareFileNodes = $userFolder->getById($shareNode->getId(), true);
+			$shareFileNode = $shareFileNodes[0] ?? null;
+			if ($shareFileNode) {
+				$shareFileStorage = $shareFileNode->getStorage();
+				if ($shareFileStorage->instanceOfStorage('OCA\Files_Sharing\External\Storage')) {
+					// if $shareFileNode is an incoming federated share, use share node permission directly
+					$maxPermissions = $shareNode->getPermissions();
+				} elseif ($shareFileStorage->instanceOfStorage('OCA\Files_Sharing\SharedStorage')) {
+					// if $shareFileNode is user/group share, use supershare permissions
+					/** @var \OCA\Files_Sharing\SharedStorage $shareFileStorage */
+					'@phan-var \OCA\Files_Sharing\SharedStorage $shareFileStorage';
+					$parentShare = $shareFileStorage->getShare();
+					$maxPermissions = $parentShare->getPermissions();
+					$requiredAttributes = $parentShare->getAttributes();
+				}
 			}
 		}
 
-		foreach ($incomingShares as $incomingShare) {
-			$maxPermissions |= $incomingShare->getPermissions();
+		/**
+		 * Check that we do not share with more permissions than we have
+		 */
+		if (!$this->strictSubsetOfPermissions($maxPermissions, $share->getPermissions())) {
+			$message_t = $this->l->t('Cannot set the requested share permissions for %s', [$share->getNode()->getName()]);
+			throw new GenericShareException($message_t, $message_t, 404);
 		}
 
-		return $maxPermissions;
+		/**
+		 * Check that all required share attributes that were set on the file
+		 * will be respected when e.g. reshared.
+		 */
+		if (!$this->strictSubsetOfAttributes($requiredAttributes, $currentAttributes)) {
+			$message_t = $this->l->t('Cannot set the requested share attributes for %s', [$share->getNode()->getName()]);
+			throw new GenericShareException($message_t, $message_t, 404);
+		}
 	}
 
 	/**
@@ -416,13 +416,34 @@ class Manager implements IManager {
 			}
 		}
 
+		switch ($share->getShareType()) {
+			case \OCP\Share::SHARE_TYPE_USER:
+				$isEnforced = $this->shareApiLinkDefaultExpireDateEnforcedForUsers();
+				$thereIsDefault = $this->shareApiLinkDefaultExpireDateForUsers();
+				$defaultDays = $this->shareApiLinkDefaultExpireDaysForUsers();
+				break;
+			case \OCP\Share::SHARE_TYPE_GROUP:
+				$isEnforced = $this->shareApiLinkDefaultExpireDateEnforcedForGroups();
+				$thereIsDefault = $this->shareApiLinkDefaultExpireDateForGroups();
+				$defaultDays = $this->shareApiLinkDefaultExpireDaysForGroups();
+				break;
+			case \OCP\Share::SHARE_TYPE_LINK:
+				$isEnforced = $this->shareApiLinkDefaultExpireDateEnforced();
+				$thereIsDefault = $this->shareApiLinkDefaultExpireDate();
+				$defaultDays = $this->shareApiLinkDefaultExpireDays();
+				break;
+			default:
+				$isEnforced = false;
+				break;
+		}
+
 		// If we enforce the expiration date check that is does not exceed
-		if ($this->shareApiLinkDefaultExpireDateEnforced()) {
+		if ($isEnforced) {
 			// If expiredate is empty and it is a new share, set a default one if there is a default
-			if ($this->isNewShare($share) && $expirationDate === null && $this->shareApiLinkDefaultExpireDate()) {
+			if ($this->isNewShare($share) && $expirationDate === null && $thereIsDefault) {
 				$expirationDate = new \DateTime();
 				$expirationDate->setTime(0, 0, 0);
-				$expirationDate->add(new \DateInterval('P'.$this->shareApiLinkDefaultExpireDays().'D'));
+				$expirationDate->add(new \DateInterval('P'.$defaultDays.'D'));
 			}
 
 			if ($expirationDate === null) {
@@ -431,9 +452,9 @@ class Manager implements IManager {
 
 			$date = new \DateTime();
 			$date->setTime(0, 0, 0);
-			$date->add(new \DateInterval('P' . $this->shareApiLinkDefaultExpireDays() . 'D'));
+			$date->add(new \DateInterval('P' . $defaultDays . 'D'));
 			if ($date < $expirationDate) {
-				$message = $this->l->t('Cannot set expiration date more than %s days in the future', [$this->shareApiLinkDefaultExpireDays()]);
+				$message = $this->l->t('Cannot set expiration date more than %s days in the future', [$defaultDays]);
 				throw new GenericShareException($message, $message, 404);
 			}
 		}
@@ -657,6 +678,9 @@ class Manager implements IManager {
 		// Verify if there are any issues with the path
 		$this->pathCreateChecks($share->getNode());
 
+		//Verify the expiration date
+		$this->validateExpirationDate($share);
+
 		/*
 		 * On creation of a share the owner is always the owner of the path
 		 * Except for mounted federated shares.
@@ -694,9 +718,6 @@ class Manager implements IManager {
 					\OCP\Security\ISecureRandom::CHAR_DIGITS
 				)
 			);
-
-			//Verify the expiration date
-			$this->validateExpirationDate($share);
 
 			//Verify the password
 			if ($this->passwordMustBeEnforced($share->getPermissions()) && $share->getPassword() === null) {
@@ -922,6 +943,12 @@ class Manager implements IManager {
 
 		$this->generalChecks($share);
 
+		//Verify the expiration date
+		$this->validateExpirationDate($share);
+		if ($share->getExpirationDate() != $originalShare->getExpirationDate()) {
+			$expirationDateUpdated = true;
+		}
+
 		if ($share->getShareType() === \OCP\Share::SHARE_TYPE_USER) {
 			$this->userCreateChecks($share);
 		} elseif ($share->getShareType() === \OCP\Share::SHARE_TYPE_GROUP) {
@@ -945,13 +972,6 @@ class Manager implements IManager {
 						($share->getShouldHashPassword() === true)) {
 					$share->setPassword($this->hasher->hash($share->getPassword()));
 				}
-			}
-
-			//Verify the expiration date
-			$this->validateExpirationDate($share);
-
-			if ($share->getExpirationDate() != $originalShare->getExpirationDate()) {
-				$expirationDateUpdated = true;
 			}
 		}
 
@@ -1184,16 +1204,13 @@ class Manager implements IManager {
 
 		$providerIdMap = $this->shareTypeToProviderMap($shareTypes);
 
-		$today = new \DateTime();
 		foreach ($providerIdMap as $providerId => $shareTypeArray) {
 			// Get provider from cache
 			$provider = $this->factory->getProvider($providerId);
 
 			$queriedShares = $provider->getAllSharesBy($userId, $shareTypeArray, $nodeIDs, $reshares);
 			foreach ($queriedShares as $queriedShare) {
-				if ($queriedShare->getShareType() === \OCP\Share::SHARE_TYPE_LINK && $queriedShare->getExpirationDate() !== null &&
-					$queriedShare->getExpirationDate() <= $today
-				) {
+				if ($this->shareHasExpired($queriedShare)) {
 					try {
 						$this->deleteShare($queriedShare);
 					} catch (NotFoundException $e) {
@@ -1226,54 +1243,49 @@ class Manager implements IManager {
 		 * Work around so we don't return expired shares but still follow
 		 * proper pagination.
 		 */
-		if ($shareType === \OCP\Share::SHARE_TYPE_LINK) {
-			$shares2 = [];
-			$today = new \DateTime();
+		$shares2 = [];
 
-			while (true) {
-				$added = 0;
-				foreach ($shares as $share) {
-					// Check if the share is expired and if so delete it
-					if ($share->getExpirationDate() !== null &&
-						$share->getExpirationDate() <= $today
-					) {
-						try {
-							$this->deleteShare($share);
-						} catch (NotFoundException $e) {
-							//Ignore since this basically means the share is deleted
-						}
-						continue;
+		while (true) {
+			$added = 0;
+			foreach ($shares as $share) {
+				// Check if the share is expired and if so delete it
+				if ($this->shareHasExpired($share)) {
+					try {
+						$this->deleteShare($share);
+					} catch (NotFoundException $e) {
+						//Ignore since this basically means the share is deleted
 					}
-					$added++;
-					$shares2[] = $share;
-
-					if (\count($shares2) === $limit) {
-						break;
-					}
+					continue;
 				}
+				$added++;
+				$shares2[] = $share;
 
 				if (\count($shares2) === $limit) {
 					break;
 				}
-
-				// If there was no limit on the select we are done
-				if ($limit === -1) {
-					break;
-				}
-
-				$offset += $added;
-
-				// Fetch again $limit shares
-				$shares = $provider->getSharesBy($userId, $shareType, $path, $reshares, $limit, $offset);
-
-				// No more shares means we are done
-				if (empty($shares)) {
-					break;
-				}
 			}
 
-			$shares = $shares2;
+			if (\count($shares2) === $limit) {
+				break;
+			}
+
+			// If there was no limit on the select we are done
+			if ($limit === -1) {
+				break;
+			}
+
+			$offset += $added;
+
+			// Fetch again $limit shares
+			$shares = $provider->getSharesBy($userId, $shareType, $path, $reshares, $limit, $offset);
+
+			// No more shares means we are done
+			if (empty($shares)) {
+				break;
+			}
 		}
+
+		$shares = $shares2;
 
 		return $shares;
 	}
@@ -1284,7 +1296,57 @@ class Manager implements IManager {
 	public function getSharedWith($userId, $shareType, $node = null, $limit = 50, $offset = 0) {
 		$provider = $this->factory->getProviderForType($shareType);
 
-		return $provider->getSharedWith($userId, $shareType, $node, $limit, $offset);
+		$shares = $provider->getSharedWith($userId, $shareType, $node, $limit, $offset);
+
+		/*
+		 * Work around so we don't return expired shares but still follow
+		 * proper pagination.
+		 */
+		$shares2 = [];
+
+		while (true) {
+			$added = 0;
+			foreach ($shares as $share) {
+				// Check if the share is expired and if so delete it
+				if ($this->shareHasExpired($share)) {
+					try {
+						$this->deleteShare($share);
+					} catch (NotFoundException $e) {
+						//Ignore since this basically means the share is deleted
+					}
+					continue;
+				}
+				$added++;
+				$shares2[] = $share;
+
+				if (\count($shares2) === $limit) {
+					break;
+				}
+			}
+
+			if (\count($shares2) === $limit) {
+				break;
+			}
+
+			// If there was no limit on the select we are done
+			if ($limit === -1) {
+				break;
+			}
+
+			$offset += $added;
+
+			// Fetch again $limit shares
+			$shares = $provider->getSharedWith($userId, $shareType, $node, $limit, $offset);
+
+			// No more shares means we are done
+			if (empty($shares)) {
+				break;
+			}
+		}
+
+		$shares = $shares2;
+
+		return $shares;
 	}
 
 	/**
@@ -1295,13 +1357,24 @@ class Manager implements IManager {
 
 		// Aggregate all required $shareTypes by mapping provider to supported shareTypes
 		$providerIdMap = $this->shareTypeToProviderMap($shareTypes);
+
 		foreach ($providerIdMap as $providerId => $shareTypeArray) {
 			// Get provider from cache
 			$provider = $this->factory->getProvider($providerId);
 
 			// Obtain all shares for all the supported provider types
 			$queriedShares = $provider->getAllSharedWith($userId, $node);
-			$shares = \array_merge($shares, $queriedShares);
+			foreach ($queriedShares as $queriedShare) {
+				if ($this->shareHasExpired($queriedShare)) {
+					try {
+						$this->deleteShare($queriedShare);
+					} catch (NotFoundException $e) {
+						//Ignore since this basically means the share is deleted
+					}
+					continue;
+				}
+				$shares[] = $queriedShare;
+			}
 		}
 
 		return $shares;
@@ -1321,9 +1394,7 @@ class Manager implements IManager {
 		$share = $provider->getShareById($id, $recipient);
 
 		// Validate link shares expiration date
-		if ($share->getShareType() === \OCP\Share::SHARE_TYPE_LINK &&
-			$share->getExpirationDate() !== null &&
-			$share->getExpirationDate() <= new \DateTime()) {
+		if ($this->shareHasExpired($share)) {
 			$this->deleteShare($share);
 			throw new ShareNotFound();
 		}
@@ -1381,8 +1452,7 @@ class Manager implements IManager {
 			$share = $provider->getShareByToken($token);
 		}
 
-		if ($share->getExpirationDate() !== null &&
-			$share->getExpirationDate() <= new \DateTime()) {
+		if ($this->shareHasExpired($share)) {
 			$this->deleteShare($share);
 			throw new ShareNotFound();
 		}
@@ -1427,6 +1497,15 @@ class Manager implements IManager {
 		}
 
 		return true;
+	}
+
+	public function getProvidersCapabilities() {
+		$capabilities = [];
+		$providers = $this->factory->getProviders();
+		foreach ($providers as $provider) {
+			$capabilities[$provider->identifier()] = $provider->getProviderCapabilities();
+		}
+		return $capabilities;
 	}
 
 	/**
@@ -1584,6 +1663,60 @@ class Manager implements IManager {
 	}
 
 	/**
+	 * Is default expire date enabled for user shares
+	 *
+	 * @return bool
+	 */
+	public function shareApiLinkDefaultExpireDateForUsers() {
+		return $this->config->getAppValue('core', 'shareapi_default_expire_date_user_share', 'no') === 'yes';
+	}
+
+	/**
+	 * Is default expire date enforced for user shares
+	 *`
+	 * @return bool
+	 */
+	public function shareApiLinkDefaultExpireDateEnforcedForUsers() {
+		return $this->shareApiLinkDefaultExpireDateForUsers() &&
+			$this->config->getAppValue('core', 'shareapi_enforce_expire_date_user_share', 'no') === 'yes';
+	}
+
+	/**
+	 * Number of default expire days for user shares
+	 * @return int
+	 */
+	public function shareApiLinkDefaultExpireDaysForUsers() {
+		return (int)$this->config->getAppValue('core', 'shareapi_expire_after_n_days_user_share', '7');
+	}
+
+	/**
+	 * Is default expire date enabled for group shares
+	 *
+	 * @return bool
+	 */
+	public function shareApiLinkDefaultExpireDateForGroups() {
+		return $this->config->getAppValue('core', 'shareapi_default_expire_date_group_share', 'no') === 'yes';
+	}
+
+	/**
+	 * Is default expire date enforced for group shares
+	 *`
+	 * @return bool
+	 */
+	public function shareApiLinkDefaultExpireDateEnforcedForGroups() {
+		return $this->shareApiLinkDefaultExpireDateForGroups() &&
+			$this->config->getAppValue('core', 'shareapi_enforce_expire_date_group_share', 'no') === 'yes';
+	}
+
+	/**
+	 * Number of default expire days for group shares
+	 * @return int
+	 */
+	public function shareApiLinkDefaultExpireDaysForGroups() {
+		return (int)$this->config->getAppValue('core', 'shareapi_expire_after_n_days_group_share', '7');
+	}
+
+	/**
 	 * Allow public upload on link shares
 	 *
 	 * @return bool
@@ -1693,7 +1826,26 @@ class Manager implements IManager {
 	 * @param int $newPermissions
 	 * @return boolean ,true if $allowedPermissions bit super set of $newPermissions bit, else false
 	 */
-	private function strictSubsetOf($allowedPermissions, $newPermissions) {
+	private function strictSubsetOfPermissions($allowedPermissions, $newPermissions) {
 		return (($allowedPermissions | $newPermissions) === $allowedPermissions);
+	}
+
+	/**
+	 * Check $currentAttributes attribute is a subset of $requiredAttributes.
+	 * Existing attributes cannot be modified
+	 *
+	 * @param IAttributes $requiredAttributes
+	 * @param IAttributes $currentAttributes
+	 * @return boolean ,true if $currentAttributes is super set of $requiredAttributes, else false
+	 */
+	private function strictSubsetOfAttributes(IAttributes $requiredAttributes, IAttributes $currentAttributes) {
+		foreach ($requiredAttributes->toArray() as $requiredAttribute) {
+			$currentAttribute = $currentAttributes->getAttribute($requiredAttribute['scope'], $requiredAttribute['key']);
+			if ($requiredAttribute['enabled'] !== $currentAttribute) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }

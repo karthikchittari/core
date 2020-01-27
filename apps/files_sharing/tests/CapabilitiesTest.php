@@ -24,6 +24,7 @@ namespace OCA\Files_Sharing\Tests;
 
 use OCA\Files_Sharing\Capabilities;
 use OCP\IL10N;
+use OCP\Share\IManager;
 
 /**
  * Class CapabilitiesTest
@@ -39,11 +40,13 @@ class CapabilitiesTest extends \Test\TestCase {
 
 	/** @var IL10N | \PHPUnit\Framework\MockObject\MockObject */
 	private $l10n;
+	/** @var IManager | \PHPUnit\Framework\MockObject\MockObject */
+	private $shareManager;
 
 	/**
 	 *
 	 */
-	protected function setUp() {
+	protected function setUp(): void {
 		parent::setUp();
 		$this->userSearch = $this->getMockBuilder(\OCP\Util\UserSearch::class)
 			->disableOriginalConstructor()
@@ -56,6 +59,8 @@ class CapabilitiesTest extends \Test\TestCase {
 		$this->l10n = $this->createMock(IL10N::class);
 		$this->l10n->method('t')
 			->willReturn('Public link');
+
+		$this->shareManager = $this->createMock(IManager::class);
 	}
 
 	/**
@@ -81,7 +86,7 @@ class CapabilitiesTest extends \Test\TestCase {
 	private function getResults(array $map) {
 		$stub = $this->getMockBuilder('\OCP\IConfig')->disableOriginalConstructor()->getMock();
 		$stub->method('getAppValue')->will($this->returnValueMap($map));
-		$cap = new Capabilities($stub, $this->userSearch, $this->l10n);
+		$cap = new Capabilities($this->shareManager, $stub, $this->userSearch, $this->l10n);
 		$result = $this->getFilesSharingPart($cap->getCapabilities());
 		return $result;
 	}
@@ -116,7 +121,7 @@ class CapabilitiesTest extends \Test\TestCase {
 			['core', 'shareapi_allow_links', 'yes', 'no'],
 		];
 		$result = $this->getResults($map);
-		$this->assertInternalType('array', $result['public']);
+		$this->assertIsArray($result['public']);
 		$this->assertFalse($result['public']['enabled']);
 	}
 
@@ -149,7 +154,7 @@ class CapabilitiesTest extends \Test\TestCase {
 			['core', 'shareapi_allow_links', 'yes', 'yes'],
 		];
 		$result = $this->getResults($map);
-		$this->assertInternalType('array', $result['public']);
+		$this->assertIsArray($result['public']);
 		$this->assertTrue($result['public']['enabled']);
 	}
 
@@ -218,7 +223,7 @@ class CapabilitiesTest extends \Test\TestCase {
 		];
 		$result = $this->getResults($map);
 		$this->assertArrayHasKey('expire_date', $result['public']);
-		$this->assertInternalType('array', $result['public']['expire_date']);
+		$this->assertIsArray($result['public']['expire_date']);
 		$this->assertFalse($result['public']['expire_date']['enabled']);
 	}
 
@@ -232,7 +237,7 @@ class CapabilitiesTest extends \Test\TestCase {
 		];
 		$result = $this->getResults($map);
 		$this->assertArrayHasKey('expire_date', $result['public']);
-		$this->assertInternalType('array', $result['public']['expire_date']);
+		$this->assertIsArray($result['public']['expire_date']);
 		$this->assertTrue($result['public']['expire_date']['enabled']);
 		$this->assertArrayHasKey('days', $result['public']['expire_date']);
 		$this->assertFalse($result['public']['expire_date']['enforced']);
@@ -247,7 +252,7 @@ class CapabilitiesTest extends \Test\TestCase {
 		];
 		$result = $this->getResults($map);
 		$this->assertArrayHasKey('expire_date', $result['public']);
-		$this->assertInternalType('array', $result['public']['expire_date']);
+		$this->assertIsArray($result['public']['expire_date']);
 		$this->assertTrue($result['public']['expire_date']['enforced']);
 	}
 

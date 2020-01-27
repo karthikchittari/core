@@ -50,7 +50,7 @@ class SyncBackendTest extends TestCase {
 	/** @var UserInterface | \PHPUnit\Framework\MockObject\MockObject */
 	private $dummyBackend;
 
-	public function setUp() {
+	public function setUp(): void {
 		parent::setUp();
 
 		$this->config = $this->createMock(IConfig::class);
@@ -268,14 +268,17 @@ class SyncBackendTest extends TestCase {
 	}
 
 	/**
-	 * @expectedException \LengthException
 	 */
 	public function testSingleUserSyncExistingUserException() {
+		$this->expectException(\LengthException::class);
+
 		$inputInterface = $this->createMock(InputInterface::class);
 		$outputInterface = $this->createMock(OutputInterface::class);
 		$syncService = $this->createMock(SyncService::class);
 
-		$this->dummyBackend->method('getUsers')->willReturn(['existing-uid', 'should-explode']);
+		$this->dummyBackend->method('getUsers')->willReturn(['existing-uid', 'existing-uid']);
+		$this->dummyBackend->method('getDisplayName')
+			->willReturn('existing-uid');
 
 		$missingAccountsAction = 'disable';
 		$syncService->expects($this->never())->method('run');
@@ -296,6 +299,8 @@ class SyncBackendTest extends TestCase {
 		$syncService = $this->createMock(SyncService::class);
 
 		$this->dummyBackend->method('getUsers')->willReturn(['existing-uid']);
+		$this->dummyBackend->method('getDisplayName')
+			->willReturn('existing-uid');
 
 		$missingAccountsAction = 'disable';
 		$syncService->expects($this

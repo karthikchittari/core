@@ -19,8 +19,6 @@
  *
  */
 
-require __DIR__ . '/../../../../lib/composer/autoload.php';
-
 use Behat\Behat\Hook\Scope\BeforeScenarioScope;
 use GuzzleHttp\Message\ResponseInterface;
 use TestHelpers\HttpRequestHelper;
@@ -110,11 +108,11 @@ class CalDavContext implements \Behat\Behat\Context\Context {
 	 * @throws \Exception
 	 */
 	public function theCalDavHttpStatusCodeShouldBe($code) {
-		if ((int)$code !== $this->response->getStatusCode()) {
+		if ((int) $code !== $this->response->getStatusCode()) {
 			throw new \Exception(
 				\sprintf(
 					'Expected %s got %s',
-					(int)$code,
+					(int) $code,
 					$this->response->getStatusCode()
 				)
 			);

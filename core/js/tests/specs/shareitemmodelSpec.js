@@ -545,7 +545,7 @@ describe('OC.Share.ShareItemModel', function() {
 				});
 			}
 
-			var requestBody = OC.parseQueryString(_.last(fakeServer.requests).requestBody);
+			var requestBody = JSON.parse(_.last(fakeServer.requests).requestBody);
 			return parseInt(requestBody.permissions, 10);
 		}
 
@@ -656,7 +656,7 @@ describe('OC.Share.ShareItemModel', function() {
 		 * @return {int}
 		 */
 		function parseLastRequestPermissions(){
-			var requestBody = OC.parseQueryString(_.last(fakeServer.requests).requestBody);
+			var requestBody = JSON.parse(_.last(fakeServer.requests).requestBody);
 			return parseInt(requestBody.permissions, 10);
 		}
 
@@ -667,27 +667,8 @@ describe('OC.Share.ShareItemModel', function() {
 		 * @return {OC.Share.Types.ShareAttribute[]}
 		 */
 		function parseLastRequestAttributes() {
-			var requestBody = OC.parseQueryString(fakeServer.requests[0].requestBody);
-
-			var i = -1;
-			var attributes = [];
-			_.map(Object.keys(requestBody), function(key) {
-				if (key.indexOf('attributes') !== -1) {
-					if (key.indexOf('scope') !== -1) {
-						i = i + 1;
-						attributes.push({});
-						attributes[i].scope = requestBody[key];
-					}
-					if (key.indexOf('key') !== -1) {
-						attributes[i].key = requestBody[key];
-					}
-					if (key.indexOf('enabled') !== -1) {
-						attributes[i].enabled = JSON.parse(requestBody[key]);
-					}
-				}
-			});
-
-			return attributes;
+			var requestBody = JSON.parse(fakeServer.requests[0].requestBody);
+			return requestBody.attributes;
 		}
 
 		/**
@@ -785,7 +766,7 @@ describe('OC.Share.ShareItemModel', function() {
 				// define expected result and test
 				expect(
 					testAddShareWithAttributes(permissionsToSet, attributesToRegister, sharePropertiesToAdd)
-				).toEqual([]);
+				).toEqual(undefined);
 			});
 
 			it('adds attributes if specified in shareAttributesApi v2', function () {
@@ -1134,13 +1115,57 @@ describe('OC.Share.ShareItemModel', function() {
 				OC.linkToOCS('apps/files_sharing/api/v1', 2) +
 				'shares?format=json'
 			);
-			expect(OC.parseQueryString(fakeServer.requests[0].requestBody)).toEqual({
+			expect(JSON.parse(fakeServer.requests[0].requestBody)).toEqual({
 				path: '/subdir/shared_file_name.txt',
-				permissions: '' + OC.PERMISSION_READ,
-				shareType: '' + OC.Share.SHARE_TYPE_GROUP,
+				permissions: OC.PERMISSION_READ,
+				shareType: OC.Share.SHARE_TYPE_GROUP,
 				shareWith: 'group1'
 			});
 		});
+		it('sends defaultExpireDateUser if enabled', function() {
+			var expireUserDays  = 7;
+			var expireGroupDays = 14;
+			var expireUserDate  = moment().add(expireUserDays, 'days').format('YYYY-MM-DD')
+
+			configModel.set({
+				isDefaultExpireDateUserEnabled: true,
+				defaultExpireDateUser: expireUserDays,
+
+				isDefaultExpireDateGroupEnabled: true,
+				defaultExpireDateGroup: expireGroupDays
+			})
+
+			model.addShare({
+				shareType: OC.Share.SHARE_TYPE_USER,
+				shareWith: 'user1',
+				permissions: OC.PERMISSION_READ,
+			});
+
+			expect(fakeServer.requests.length).toEqual(1);
+			expect(JSON.parse(fakeServer.requests[0].requestBody)).toEqual( jasmine.objectContaining({expireDate: expireUserDate}) )
+		})
+		it('sends defaultExpireDateGroup if enabled', function() {
+			var expireUserDays  = 7;
+			var expireGroupDays = 2;
+			var expireGroupDate = moment().add(expireGroupDays, 'days').format('YYYY-MM-DD')
+
+			configModel.set({
+				isDefaultExpireDateUserEnabled: true,
+				defaultExpireDateUser: expireUserDays,
+
+				isDefaultExpireDateGroupEnabled: true,
+				defaultExpireDateGroup: expireGroupDays
+			})
+
+			model.addShare({
+				shareType: OC.Share.SHARE_TYPE_GROUP,
+				shareWith: 'group1',
+				permissions: OC.PERMISSION_READ,
+			});
+
+			expect(fakeServer.requests.length).toEqual(1);
+			expect(JSON.parse(fakeServer.requests[0].requestBody)).toEqual( jasmine.objectContaining({expireDate: expireGroupDate}) )
+		})
 		it('calls error handler with error message', function() {
 			var errorStub = sinon.stub();
 			model.addShare({
@@ -1168,7 +1193,7 @@ describe('OC.Share.ShareItemModel', function() {
 		});
 	});
 	describe('updating shares', function() {
-		it('sends PUT method to endpoint with passed values', function() {
+		it('sends PUT method to endpoint with passed permissions values', function() {
 			model.updateShare(123, {
 				permissions: OC.PERMISSION_READ | OC.PERMISSION_SHARE
 			});
@@ -1179,8 +1204,8 @@ describe('OC.Share.ShareItemModel', function() {
 				OC.linkToOCS('apps/files_sharing/api/v1', 2) +
 				'shares/123?format=json'
 			);
-			expect(OC.parseQueryString(fakeServer.requests[0].requestBody)).toEqual({
-				permissions: '' + (OC.PERMISSION_READ | OC.PERMISSION_SHARE)
+			expect(JSON.parse(fakeServer.requests[0].requestBody)).toEqual({
+				permissions: (OC.PERMISSION_READ | OC.PERMISSION_SHARE)
 			});
 		});
 		it('calls error handler with error message', function() {

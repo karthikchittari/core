@@ -16,7 +16,7 @@ Feature: rename folders
     Then folder <to_folder_name> should be listed on the webUI
     Examples:
       | to_folder_name          |
-      | 'सिमप्ले फोल्देर$%#?&@'       |
+      | 'सिमप्ले फोल्देर$%#?&@' |
       | '"quotes1"'             |
       | "'quotes2'"             |
 
@@ -29,7 +29,7 @@ Feature: rename folders
     Then folder <to_name> should be listed on the webUI
     Examples:
       | from_name               | to_name                     |
-      | "strängé नेपाली folder"   | "strängé नेपाली folder-#?2"   |
+      | "strängé नेपाली folder" | "strängé नेपाली folder-#?2" |
       | "'single'quotes"        | "single-quotes"             |
 
   Scenario: Rename a folder using special characters and check its existence after page reload
@@ -66,7 +66,7 @@ Feature: rename folders
     And user "user1" has logged in using the webUI
     When the user renames the following folder using the webUI
       | from-name-parts | to-name-parts         |
-      | a-folder   | First 'single' quotes |
+      | a-folder        | First 'single' quotes |
       |                 | -then "double"        |
     And the user reloads the current page of the webUI
     Then the following folder should be listed on the webUI
@@ -82,11 +82,70 @@ Feature: rename folders
 
   Scenario: Rename a folder using forbidden characters
     Given user "user1" has created folder "a-folder"
+    And the administrator has updated system config key "blacklisted_files" with value '["blacklisted-file.txt",".htaccess"]' and type "json"
     And user "user1" has logged in using the webUI
     When the user renames folder "a-folder" to one of these names using the webUI
-      | simple\folder   |
-      | \\simple-folder |
-      | .htaccess       |
+      | simple\folder        |
+      | \\simple-folder      |
+      | .htaccess            |
+      | blacklisted-file.txt |
+    Then notifications should be displayed on the webUI with the text
+      | Could not rename "a-folder" |
+      | Could not rename "a-folder" |
+      | Could not rename "a-folder" |
+      | Could not rename "a-folder" |
+    And folder "a-folder" should be listed on the webUI
+
+  @skipOnOcV10.3
+  Scenario: Rename a folder to a foldername that matches (or not) blacklisted_files_regex
+    Given user "user1" has created folder "a-folder"
+    # Note: we have to write JSON for the value, and to get a backslash in the double-quotes we have to escape it
+    # The actual regular expressions end up being .*\.ext$ and ^bannedfilename\..+
+    And the administrator has updated system config key "blacklisted_files_regex" with value '[".*\\.ext$","^bannedfilename\\..+","containsbannedstring"]' and type "json"
+    And user "user1" has logged in using the webUI
+    When the user renames folder "a-folder" to one of these names using the webUI
+      | filename.ext                  |
+      | bannedfilename.txt            |
+      | this-ContainsBannedString.txt |
+    Then notifications should be displayed on the webUI with the text
+      | Could not rename "a-folder" |
+      | Could not rename "a-folder" |
+      | Could not rename "a-folder" |
+    And folder "a-folder" should be listed on the webUI
+
+  Scenario: Rename a folder to an excluded folder name
+    Given user "user1" has created folder "a-folder"
+    And the administrator has updated system config key "excluded_directories" with value '[".github"]' and type "json"
+    And user "user1" has logged in using the webUI
+    When the user renames folder "a-folder" to one of these names using the webUI
+      | .github |
+    Then notifications should be displayed on the webUI with the text
+      | Could not rename "a-folder" |
+    And folder "a-folder" should be listed on the webUI
+
+  Scenario: Rename a folder to an excluded folder name inside a parent folder
+    Given user "user1" has created folder "top-folder"
+    And user "user1" has created folder "top-folder/a-folder"
+    And the administrator has updated system config key "excluded_directories" with value '[".github"]' and type "json"
+    And user "user1" has logged in using the webUI
+    And the user has opened folder "top-folder" using the webUI
+    When the user renames folder "a-folder" to one of these names using the webUI
+      | .github            |
+    Then notifications should be displayed on the webUI with the text
+      | Could not rename "a-folder" |
+    And folder "a-folder" should be listed on the webUI
+
+  @skipOnOcV10.3
+  Scenario: Rename a folder to a foldername that matches (or not) excluded_directories_regex
+    Given user "user1" has created folder "a-folder"
+    # Note: we have to write JSON for the value, and to get a backslash in the double-quotes we have to escape it
+    # The actual regular expressions end up being endswith\.bad$ and ^\.git
+    And the administrator has updated system config key "excluded_directories_regex" with value '["endswith\\.bad$","^\\.git","containsvirusinthename"]' and type "json"
+    And user "user1" has logged in using the webUI
+    When the user renames folder "a-folder" to one of these names using the webUI
+      | thisendswith.bad                |
+      | .github                         |
+      | this-containsvirusinthename.txt |
     Then notifications should be displayed on the webUI with the text
       | Could not rename "a-folder" |
       | Could not rename "a-folder" |
