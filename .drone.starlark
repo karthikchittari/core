@@ -120,6 +120,7 @@ config = {
 		'apiFederation': {
 			'suites': [
 				'apiFederation',
+				'apiOCFilesExternal',
 			],
 			'federatedServerNeeded': True,
 			'federatedServerVersions': ['daily-master-qa', '10.2.1']
