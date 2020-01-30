@@ -17391,7 +17391,6 @@ depends_on:
 - phan-php7.1
 - phan-php7.2
 - phan-php7.3
-- phan-php7.4
 
 ---
 kind: pipeline
@@ -17550,7 +17549,6 @@ depends_on:
 - phan-php7.1
 - phan-php7.2
 - phan-php7.3
-- phan-php7.4
 
 ---
 kind: pipeline
