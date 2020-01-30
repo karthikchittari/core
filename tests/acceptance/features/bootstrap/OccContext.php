@@ -1428,15 +1428,14 @@ class OccContext implements Context {
 	}
 
 	/**
-	 * @Then the following mount configuration information should be listed:
+	 * assert expected output of occ command with last stdout of occ command
 	 *
-	 * @param $info
+	 * @param array $expectedStdOut
 	 *
 	 * @return void
 	 */
-	public function theFollowingInformationShouldBeListed(TableNode $info) {
+	public function assertCommandOutputWithGivenInformation($expectedStdOut) {
 		$ResultArray = [];
-		$expectedInfo = $info->getColumnsHash();
 		$commandOutput = $this->featureContext->getStdOutOfOccCommand();
 		$commandOutputSplitted = \preg_split("/[-]/", $commandOutput);
 		$filteredArray = \array_filter(\array_map("trim", $commandOutputSplitted));
@@ -1448,9 +1447,21 @@ class OccContext implements Context {
 				$ResultArray[$keyValue[0]] = "";
 			}
 		}
-		foreach ($expectedInfo as $element) {
-			Assert::assertEquals($element, \array_map('trim', $ResultArray));
+		foreach ($expectedStdOut as $key => $value) {
+			Assert::assertEquals($value, \trim($ResultArray[$key]));
 		}
+	}
+
+	/**
+	 * @Then the following mount configuration information should be listed:
+	 *
+	 * @param $info
+	 *
+	 * @return void
+	 */
+	public function theFollowingInformationShouldBeListed(TableNode $info) {
+		$expectedInfo = $info->getColumnsHash();
+		$this->assertCommandOutputWithGivenInformation($expectedInfo[0]);
 	}
 
 	/**
@@ -2004,6 +2015,83 @@ class OccContext implements Context {
 			"yes",
 			$status
 		);
+	}
+
+	/**
+	 * @param TableNode $settings
+	 *
+	 * necessary attributes inside $settings table:
+	 * 1. host        	     - remote server url
+	 * 2. root        	     - remote folder name
+	 * 3. secure      	     - true/false (http or https)
+	 * 4. user        	     - remote server user username
+	 * 5. password    	     - remote server user password
+	 * 6. mount_point 	     - external storage name
+	 * 7. storage_backend        - options: [local, owncloud, smb, googledrive, sftp, dav]
+	 * 8. authentication_backend - options: [null::null, password::password, password::sessioncredentials]
+	 *
+	 * @see [`php occ files_external:backends`] to view
+	 * detailed information of parameters used above
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	public function createExternalMountPointUsingTheOccCommand($settings) {
+		$this->featureContext->verifyTableNodeRows(
+			$settings,
+			["host", "root", "storage_backend",
+			"authentication_backend", "mount_point"],
+			[ "user", "password", "secure"]
+		);
+		$extMntSettings = $settings->getRowsHash();
+		$args = [
+			"files_external:create",
+			"-c host='" .
+			$this->featureContext->substituteInLineCodes($extMntSettings['host']) .
+			"'",
+			"-c root='" . $extMntSettings['root'] . "'",
+			"-c secure=" . $extMntSettings['secure'],
+			"-c user='" . $extMntSettings['user'] . "'",
+			"-c password='" . $extMntSettings['password'] . "'",
+			$extMntSettings['mount_point'],
+			$extMntSettings['storage_backend'],
+			$extMntSettings['authentication_backend']
+		];
+		$this->featureContext->runOcc($args);
+	}
+
+	/**
+	 * @When user :user creates an external mount point with following configuration using the occ command
+	 *
+	 * @param string $user
+	 * @param TableNode $settings
+	 *
+	 * @return void
+	 */
+	public function userCreatesAnExternalMountPointWithFollowingConfigUsingTheOccCommand($user, TableNode $settings) {
+		$this->createExternalMountPointUsingTheOccCommand($settings);
+	}
+
+	/**
+	 * @Given user :user has created an external mount point with following configuration using the occ command
+	 *
+	 * @param string $user
+	 * @param TableNode $settings
+	 *
+	 * @return void
+	 */
+	public function userHasCreatedAnExternalMountPointWithFollowingConfigUsingTheOccCommand($user, TableNode $settings) {
+		$this->createExternalMountPointUsingTheOccCommand($settings);
+		$this->theCommandShouldHaveBeenSuccessful();
+
+		$mountPoint =  $settings->getRowsHash()["mount_point"];
+		$this->theAdministratorVerifiesTheMountConfigurationForLocalStorageUsingTheOccCommand($mountPoint);
+		$expectedStdOut = [
+			"status" => "ok",
+			"code" => "0",
+			"message" => ""
+		];
+		$this->assertCommandOutputWithGivenInformation($expectedStdOut);
 	}
 
 	/**
