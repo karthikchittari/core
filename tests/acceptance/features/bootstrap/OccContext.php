@@ -2022,7 +2022,7 @@ class OccContext implements Context {
 	 *
 	 * necessary attributes inside $settings table:
 	 * 1. host        	     - remote server url
-	 * 2. root        	     - remote folder name
+	 * 2. root        	     - remote folder name -> mount path
 	 * 3. secure      	     - true/false (http or https)
 	 * 4. user        	     - remote server user username
 	 * 5. password    	     - remote server user password
@@ -2044,6 +2044,7 @@ class OccContext implements Context {
 			[ "user", "password", "secure"]
 		);
 		$extMntSettings = $settings->getRowsHash();
+		$password = $this->featureContext->getActualPassword($extMntSettings['password']);
 		$args = [
 			"files_external:create",
 			"-c host='" .
@@ -2052,7 +2053,7 @@ class OccContext implements Context {
 			"-c root='" . $extMntSettings['root'] . "'",
 			"-c secure=" . $extMntSettings['secure'],
 			"-c user='" . $extMntSettings['user'] . "'",
-			"-c password='" . $extMntSettings['password'] . "'",
+			"-c password='" . $password . "'",
 			$extMntSettings['mount_point'],
 			$extMntSettings['storage_backend'],
 			$extMntSettings['authentication_backend']
@@ -2061,26 +2062,24 @@ class OccContext implements Context {
 	}
 
 	/**
-	 * @When user :user creates an external mount point with following configuration using the occ command
+	 * @When administrator creates an external mount point with following configuration using the occ command
 	 *
-	 * @param string $user
 	 * @param TableNode $settings
 	 *
 	 * @return void
 	 */
-	public function userCreatesAnExternalMountPointWithFollowingConfigUsingTheOccCommand($user, TableNode $settings) {
+	public function userCreatesAnExternalMountPointWithFollowingConfigUsingTheOccCommand(TableNode $settings) {
 		$this->createExternalMountPointUsingTheOccCommand($settings);
 	}
 
 	/**
-	 * @Given user :user has created an external mount point with following configuration using the occ command
+	 * @Given administrator has created an external mount point with following configuration using the occ command
 	 *
-	 * @param string $user
 	 * @param TableNode $settings
 	 *
 	 * @return void
 	 */
-	public function userHasCreatedAnExternalMountPointWithFollowingConfigUsingTheOccCommand($user, TableNode $settings) {
+	public function userHasCreatedAnExternalMountPointWithFollowingConfigUsingTheOccCommand(TableNode $settings) {
 		$this->createExternalMountPointUsingTheOccCommand($settings);
 		$this->theCommandShouldHaveBeenSuccessful();
 
@@ -2092,6 +2091,34 @@ class OccContext implements Context {
 			"message" => ""
 		];
 		$this->assertCommandOutputWithGivenInformation($expectedStdOut);
+	}
+
+	/**
+	 * This will remove test created external mount points
+	 *
+	 * @When administrator deletes external storage with mount point :mountPoint
+	 *
+	 * @param string $mountPoint
+	 *
+	 * @return void
+	 */
+	public function deleteExternalMountPoint($mountPoint) {
+		$this->administratorDeletesFolder($mountPoint);
+	}
+
+	/**
+	 * @Then mount point :mountPoint should not be listed as created external storages
+	 *
+	 * @param string $mountPoint
+	 *
+	 * @return void
+	 */
+	public function mountPointShouldNotBeListedAsCreatedExternalStorage($mountPoint) {
+		$this->listLocalStorageMountShort();
+		$commandOutput = \json_decode($this->featureContext->getStdOutOfOccCommand());
+		foreach ($commandOutput as $entry) {
+			Assert::assertNotEquals($mountPoint, $entry->mount_point);
+		}
 	}
 
 	/**
